@@ -29,7 +29,7 @@ fun KtClass.getFullyQualifiedName(
     }
 }
 
-fun KtClass.canBeInherited(): Boolean {
+fun KtClass.isInheritable(): Boolean {
     return isSealed() || isInterface() || isAbstract() || hasModifier(KtTokens.OPEN_KEYWORD)
 }
 

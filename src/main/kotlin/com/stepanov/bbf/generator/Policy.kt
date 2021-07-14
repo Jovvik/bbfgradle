@@ -8,9 +8,9 @@ import java.lang.Integer.min
 import kotlin.random.Random
 
 object Policy {
-    fun classLimit() = 20
+    fun classLimit() = 10
 
-    fun isAbstract() = bernoulliDistribution(0.2)
+    fun isAbstract() = bernoulliDistribution(0.5)
 
     fun isDataclass() = bernoulliDistribution(0.5)
 
@@ -20,6 +20,7 @@ object Policy {
 
     fun isInner() = bernoulliDistribution(0.3)
 
+    // tmp
     fun isOpen() = bernoulliDistribution(0.5)
 
     fun propertyLimit() = uniformDistribution(5, 10)
@@ -31,10 +32,10 @@ object Policy {
 
     const val maxNestedClassDepth = 3
 
-    fun isAbstractProperty() = bernoulliDistribution(0.2)
+    // tmp until instance generator
+    fun isAbstractProperty() = bernoulliDistribution(1.0)
 
-    // temporary until object generator is merged
-    fun isDefinedInConstructor() = true
+    fun isDefinedInConstructor() = bernoulliDistribution(0.5)
 
     fun hasDefaultValue() = false
 
@@ -148,7 +149,7 @@ object Policy {
     // TODO: resolve inheritance conflicts
     // TODO: O(context.customClasses.size), could be O(inheritedClassCount)
     fun inheritedClasses(context: Context): List<KtClass> {
-        return context.customClasses.filter { it.canBeInherited() }
+        return context.customClasses.filter { it.isInheritable() }
             .shuffled()
             .subList(0, min(inheritedClassCount(), context.customClasses.size))
     }
