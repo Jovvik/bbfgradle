@@ -4,6 +4,7 @@ import org.jetbrains.kotlin.psi.KtClass
 import org.jetbrains.kotlin.psi.KtTypeParameter
 import org.jetbrains.kotlin.psi.psiUtil.isAbstract
 import org.jetbrains.kotlin.types.Variance
+import java.lang.Integer.min
 import kotlin.random.Random
 
 object Policy {
@@ -30,7 +31,7 @@ object Policy {
 
     const val maxNestedClassDepth = 3
 
-    private fun isAbstractProperty() = bernoulliDistribution(0.2)
+    fun isAbstractProperty() = bernoulliDistribution(0.2)
 
     // temporary until object generator is merged
     fun isDefinedInConstructor() = true
@@ -44,6 +45,9 @@ object Policy {
     private fun useBasicType() = bernoulliDistribution(0.3)
 
     fun typeParameterLimit() = uniformDistribution(0, 2)
+
+    // tmp
+    private fun inheritedClassCount() = 0
 
     private fun uniformDistribution(min: Int, max: Int): Int {
         return Random.nextInt(min, max)
@@ -68,7 +72,7 @@ object Policy {
         val canUseTypeParameter = typeParameterList.any { it.variance != Variance.IN_VARIANCE }
         val canUseCustomClass = context.customClasses.any { !it.isAbstract() }
         return when {
-            (!canUseCustomClass && !canUseTypeParameter) || useBasicType() -> ClassOrBasicType(basicTypes.random())
+            (!canUseCustomClass && !canUseTypeParameter) || useBasicType() -> ClassOrBasicType(BasicTypeGenerator().generate())
             canUseCustomClass && (!canUseTypeParameter || useCustomClass()) -> {
                 val cls = context.customClasses.random()
                 return ClassOrBasicType(cls.getFullyQualifiedName(context, emptyList(), false), cls)
@@ -141,7 +145,11 @@ object Policy {
         }
     }
 
-    // floats might be too complicated, YARPGEN doesn't use them
-    // can't generate random valid chars easily
-    private val basicTypes = listOf("Int", "Long", "Float", "Double", "Boolean")
+    // TODO: resolve inheritance conflicts
+    // TODO: O(context.customClasses.size), could be O(inheritedClassCount)
+    fun inheritedClasses(context: Context): List<KtClass> {
+        return context.customClasses.filter { it.canBeInherited() }
+            .shuffled()
+            .subList(0, min(inheritedClassCount(), context.customClasses.size))
+    }
 }

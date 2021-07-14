@@ -5,8 +5,6 @@ import com.stepanov.bbf.bugfinder.util.addAtTheEnd
 import com.stepanov.bbf.bugfinder.util.addPsiToBody
 import org.jetbrains.kotlin.psi.KtClass
 import org.jetbrains.kotlin.psi.KtFile
-import org.jetbrains.kotlin.psi.KtTypeParameter
-import org.jetbrains.kotlin.types.Variance
 
 class ClassGenerator(val context: Context, val file: KtFile) {
     fun generate() {
@@ -33,17 +31,15 @@ class ClassGenerator(val context: Context, val file: KtFile) {
         val cls = Factory.psiFactory.createClass("data class Class${context.customClasses.size}()")
         repeat(Policy.propertyLimit()) {
             // maybe properties in body?
-            addConstructorArgument(
+            PropertyGenerator(context, cls).addConstructorArgument(
                 indexString("property", it, context),
                 Policy.chooseType(context, cls.typeParameters),
-                cls,
                 null
             )
         }
         saveClass(cls)
     }
 
-    // TODO: abstract class, inheritance
     private fun generateClass(
         classLimit: Int,
         containingClass: KtClass? = null,
@@ -56,23 +52,28 @@ class ClassGenerator(val context: Context, val file: KtFile) {
         if (isInner) {
             classModifiers.add("inner")
         }
-        if (Policy.isSealed()) {
-            classModifiers.add("sealed")
+        when {
+            Policy.isSealed() -> classModifiers.add("sealed")
+            Policy.isOpen() -> classModifiers.add("open")
+            Policy.isAbstract() -> classModifiers.add("abstract")
         }
-        if (Policy.isOpen()) {
-            classModifiers.add("open")
-        }
+
         val typeParameterLimit = Policy.typeParameterLimit()
         var cls = Factory.psiFactory.createClass(
-            "${classModifiers.joinToString(" ")} class Class${context.customClasses.size}${if (typeParameterLimit > 0) "<>" else ""}(){\n}"
+            makeClassText(
+                classModifiers,
+                typeParameterLimit,
+                Policy.inheritedClasses(context)
+            )
         )
+
         // TODO: bounds
         repeat(typeParameterLimit) {
             cls.typeParameterList!!.addParameter(
                 Factory.psiFactory.createTypeParameter("${Policy.variance().label} ${indexString("T", it, context)}")
             )
         }
-        val propertyGenerator = PropertyGenerator(context, cls, this)
+        val propertyGenerator = PropertyGenerator(context, cls)
         repeat(Policy.propertyLimit()) {
             propertyGenerator.generate(it)
         }
@@ -90,22 +91,15 @@ class ClassGenerator(val context: Context, val file: KtFile) {
         }
     }
 
-    fun addConstructorArgument(
-        name: String,
-        type: ClassOrBasicType,
-        cls: KtClass,
-        typeParameter: KtTypeParameter?
-    ) {
-        val parameterTokens = mutableListOf(
-            if (typeParameter?.variance == Variance.OUT_VARIANCE || !Policy.isVar()) "val" else "var",
-            name, ":", type.name
-        )
-        if (typeParameter == null && !type.hasTypeParameters && Policy.hasDefaultValue()) {
-            parameterTokens.add("=")
-            parameterTokens.add(Policy.randomConst(type, context))
-        }
-        cls.getPrimaryConstructorParameterList()!!
-            .addParameter(Factory.psiFactory.createParameter(parameterTokens.joinToString(" ")))
+    private fun makeClassText(
+        classModifiers: MutableList<String>,
+        typeParameterLimit: Int,
+        inheritedClasses: List<KtClass>
+    ): String {
+        val typeParameterBrackets = if (typeParameterLimit == 0) "" else "<>"
+        val inheritanceBlock =
+            if (inheritedClasses.isEmpty()) "" else " : " + inheritedClasses.joinToString(", ") { it.name!! }
+        return "${classModifiers.joinToString(" ")} class Class${context.customClasses.size}$typeParameterBrackets$inheritanceBlock(){\n}"
     }
 
     private fun saveClass(cls: KtClass) {
