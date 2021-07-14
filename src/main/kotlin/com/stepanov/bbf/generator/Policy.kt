@@ -1,12 +1,13 @@
 package com.stepanov.bbf.generator
 
+import org.jetbrains.kotlin.psi.KtClass
 import org.jetbrains.kotlin.psi.KtTypeParameter
 import org.jetbrains.kotlin.psi.psiUtil.isAbstract
 import org.jetbrains.kotlin.types.Variance
 import kotlin.random.Random
 
 object Policy {
-    fun classLimit() = 50
+    fun classLimit() = 20
 
     fun isAbstract() = bernoulliDistribution(0.2)
 
@@ -70,10 +71,7 @@ object Policy {
             (!canUseCustomClass && !canUseTypeParameter) || useBasicType() -> ClassOrBasicType(basicTypes.random())
             canUseCustomClass && (!canUseTypeParameter || useCustomClass()) -> {
                 val cls = context.customClasses.random()
-                val typeParameters = cls.typeParameterList?.parameters?.joinToString(", ", "<", ">") {
-                    randomTypeParameterValue(it, context, cls.typeParameters).name
-                } ?: ""
-                return ClassOrBasicType(cls.getFullyQualifiedName(context, false) + typeParameters, cls)
+                return ClassOrBasicType(cls.getFullyQualifiedName(context, emptyList(), false), cls)
             }
             else -> {
                 ClassOrBasicType(typeParameterList.filter { it.variance != Variance.IN_VARIANCE }.random().name!!)
@@ -81,7 +79,17 @@ object Policy {
         }
     }
 
-    // dead code
+    fun resolveTypeParameters(
+        cls: KtClass,
+        context: Context,
+        typeParameterList: List<KtTypeParameter>
+    ): ClassOrBasicType {
+        val typeParameters = cls.typeParameterList?.parameters?.joinToString(", ", "<", ">") {
+            randomTypeParameterValue(it, context, typeParameterList).name
+        } ?: ""
+        return ClassOrBasicType(cls.name!! + typeParameters, cls)
+    }
+
     fun randomConst(type: ClassOrBasicType, context: Context): String {
         TODO("Will use other generator")
         /*if (type.hasTypeParameters) {
