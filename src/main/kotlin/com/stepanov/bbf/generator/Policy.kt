@@ -8,7 +8,7 @@ import java.lang.Integer.min
 import kotlin.random.Random
 
 object Policy {
-    fun classLimit() = 10
+    fun classLimit() = 30
 
     fun isAbstract() = bernoulliDistribution(0.5)
 
@@ -21,7 +21,7 @@ object Policy {
     fun isInner() = bernoulliDistribution(0.3)
 
     // tmp
-    fun isOpen() = bernoulliDistribution(0.5)
+    fun isOpen() = bernoulliDistribution(0.0)
 
     fun propertyLimit() = uniformDistribution(5, 10)
 
@@ -31,6 +31,8 @@ object Policy {
     fun isSealed() = false
 
     const val maxNestedClassDepth = 3
+
+    const val maxTypeParameterDepth = 2
 
     // tmp until instance generator
     fun isAbstractProperty() = bernoulliDistribution(1.0)
@@ -45,10 +47,23 @@ object Policy {
 
     private fun useBasicType() = bernoulliDistribution(0.3)
 
-    fun typeParameterLimit() = uniformDistribution(0, 2)
+    // tmp
+    fun typeParameterLimit() = 0
+
+    /**
+     * Whether to to use `bar` in a `foo` function call in the following situation:
+     *
+     * ```
+     * fun foo(bar: T = baz)
+     * ```
+     */
+    fun provideArgumentWithDefaultValue() = bernoulliDistribution(0.5)
 
     // tmp
-    private fun inheritedClassCount() = 0
+    private fun inheritedClassCount() = uniformDistribution(1, 3)
+
+    // tmp
+    private fun inheritClass() = bernoulliDistribution(0.5)
 
     private fun uniformDistribution(min: Int, max: Int): Int {
         return Random.nextInt(min, max)
@@ -69,14 +84,14 @@ object Policy {
     }
 
     // TODO: nullable versions
-    fun chooseType(context: Context, typeParameterList: List<KtTypeParameter>): ClassOrBasicType {
+    fun chooseType(context: Context, typeParameterList: List<KtTypeParameter>, depth: Int = 0): ClassOrBasicType {
         val canUseTypeParameter = typeParameterList.any { it.variance != Variance.IN_VARIANCE }
         val canUseCustomClass = context.customClasses.any { !it.isAbstract() }
         return when {
             (!canUseCustomClass && !canUseTypeParameter) || useBasicType() -> ClassOrBasicType(BasicTypeGenerator().generate())
             canUseCustomClass && (!canUseTypeParameter || useCustomClass()) -> {
-                val cls = context.customClasses.random()
-                return ClassOrBasicType(cls.getFullyQualifiedName(context, emptyList(), false), cls)
+                val cls = context.customClasses.filter { !it.isAbstract() }.random()
+                return ClassOrBasicType(cls.getFullyQualifiedName(context, emptyList(), false, depth + 1), cls)
             }
             else -> {
                 ClassOrBasicType(typeParameterList.filter { it.variance != Variance.IN_VARIANCE }.random().name!!)
@@ -87,10 +102,11 @@ object Policy {
     fun resolveTypeParameters(
         cls: KtClass,
         context: Context,
-        typeParameterList: List<KtTypeParameter>
+        typeParameterList: List<KtTypeParameter>,
+        depth: Int = 0
     ): ClassOrBasicType {
         val typeParameters = cls.typeParameterList?.parameters?.joinToString(", ", "<", ">") {
-            randomTypeParameterValue(it, context, typeParameterList).name
+            randomTypeParameterValue(it, context, typeParameterList, depth).name
         } ?: ""
         return ClassOrBasicType(cls.name!! + typeParameters, cls)
     }
@@ -130,7 +146,8 @@ object Policy {
     private fun randomTypeParameterValue(
         typeParameter: KtTypeParameter,
         context: Context,
-        typeParameterList: List<KtTypeParameter>
+        typeParameterList: List<KtTypeParameter>,
+        depth: Int
     ): ClassOrBasicType {
         return when {
             typeParameter.extendsBound != null -> {
@@ -140,17 +157,31 @@ object Policy {
 //            cls.parameterValues.containsKey(typeParameter) -> {
 //                ClassWithTypeParameters(cls.parameterValues[typeParameter]!!)
 //            }
+            depth >= maxTypeParameterDepth -> {
+                ClassOrBasicType(BasicTypeGenerator().generate())
+            }
             else -> {
-                chooseType(context, typeParameterList)
+                chooseType(context, typeParameterList, depth + 1)
             }
         }
     }
 
-    // TODO: resolve inheritance conflicts
+    // TODO: resolve inheritance conflicts?
     // TODO: O(context.customClasses.size), could be O(inheritedClassCount)
     fun inheritedClasses(context: Context): List<KtClass> {
-        return context.customClasses.filter { it.isInheritable() }
+        val inheritedClassCount = inheritedClassCount()
+        if (inheritedClassCount == 0) {
+            return emptyList()
+        }
+        val result = mutableListOf<KtClass>()
+        if (useCustomClass() && context.customClasses.any { it.isInheritableClass() }) {
+            result.add(context.customClasses.filter { it.isInheritableClass() }.random())
+        }
+        result.addAll(context.customClasses.filter { it.isInterface() }
             .shuffled()
-            .subList(0, min(inheritedClassCount(), context.customClasses.size))
+            .let {
+                it.subList(0, min(inheritedClassCount - 1, it.size))
+            })
+        return result
     }
 }

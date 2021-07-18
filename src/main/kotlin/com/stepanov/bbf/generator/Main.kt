@@ -18,6 +18,28 @@ fun main(args: Array<String>) {
         Logger.getLogger("reducerLogger").level = Level.OFF
         Logger.getLogger("transformationManagerLog").level = Level.OFF
     }
+
+//    val p_ = Project.createFromCode(
+//        """
+//        abstract class A() {
+//            abstract val a: Int
+//        }
+//
+//        class B() : A() {
+//            override val a: Int = 5
+//        }
+//    """.trimIndent()
+//    )
+//    val file_ = p_.files.first().psiFile as KtFile
+//    val bindingContext = PSICreator.analyze(file_)!!
+//    for (cls in file_.getAllPSIChildrenOfType<KtClass>()) {
+//        val classDescriptor = cls.getDeclarationDescriptorIncludingConstructors(bindingContext)!! as ClassDescriptor
+//        val descrs = classDescriptor.unsubstitutedMemberScope.getDescriptorsFiltered { true }
+//        println(descrs.filterIsInstance<PropertyDescriptor>())
+//    }
+//
+//    exitProcess(0)
+
     val p = Generator().generate()
     val file = p.files.first().psiFile as KtFile
     println(file.text)

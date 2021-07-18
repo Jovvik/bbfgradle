@@ -14,7 +14,7 @@ class PropertyGenerator(val context: Context, val cls: KtClass) {
             modifiers.add("abstract")
         }
         val type = Policy.chooseType(context, cls.typeParameters)
-        val name = indexString("property", propertyIndex, context)
+        val name = indexString("property", context, propertyIndex)
         val typeParameter = cls.typeParameters.firstOrNull { it.name == type.name }
         // abstract case is tmp until instance generator
         if (!modifiers.contains("abstract") || typeParameter != null || type.hasTypeParameters || Policy.isDefinedInConstructor()) {
@@ -35,11 +35,26 @@ class PropertyGenerator(val context: Context, val cls: KtClass) {
     fun addConstructorArgument(
         name: String,
         type: ClassOrBasicType,
-        typeParameter: KtTypeParameter?
+        typeParameter: KtTypeParameter?,
+        isOverride: Boolean = false,
+        forceVar: Boolean? = null
     ) {
-        val parameterTokens = mutableListOf(
-            if (typeParameter?.variance == Variance.OUT_VARIANCE || !Policy.isVar()) "val" else "var",
-            name, ":", type.name
+        val parameterTokens = mutableListOf<String>()
+        if (isOverride) {
+            parameterTokens.add("override")
+        }
+        val isVal = when {
+            forceVar != null -> !forceVar
+            typeParameter?.variance == Variance.OUT_VARIANCE || !Policy.isVar() -> true
+            else -> false
+        }
+        parameterTokens.addAll(
+            listOf(
+                if (isVal) "val" else "var",
+                name,
+                ":",
+                type.name
+            )
         )
         if (typeParameter == null && !type.hasTypeParameters && Policy.hasDefaultValue()) {
             parameterTokens.add("=")
