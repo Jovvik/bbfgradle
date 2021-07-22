@@ -95,10 +95,9 @@ class ClassGenerator(val context: Context, val file: KtFile) {
         val (classModifiers, isInner) = getClassModifiers(isInner, containingClass)
 
         // TODO: bounds
-        val typeParameters = mutableListOf<KtTypeParameter>()
-        for (i in 0 until Policy.typeParameterLimit()) {
-            val paramName = indexString("T", context, i)
-            typeParameters.add(Factory.psiFactory.createTypeParameter("${Policy.varianceTable().label} $paramName"))
+        val typeParameters = (0 until Policy.typeParameterLimit()).map {
+            val paramName = indexString("T", context, it)
+            Factory.psiFactory.createTypeParameter("${Policy.varianceTable().label} $paramName")
         }
         val inheritedClasses = Policy.inheritedClasses(context)
         val qualifiedInheritedClasses =
@@ -153,7 +152,7 @@ class ClassGenerator(val context: Context, val file: KtFile) {
 //                        )!!.asTypeProjection()
 //                    })
 //                println(replaced.memberScope)
-    
+
                 for (parameter in inheritedClass.primaryConstructorParameters) {
                     if (parameter.hasDefaultValue() && !Policy.provideArgumentWithDefaultValue()) {
                         continue
