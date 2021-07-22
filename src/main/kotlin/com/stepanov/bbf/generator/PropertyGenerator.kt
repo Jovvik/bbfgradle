@@ -11,7 +11,7 @@ class PropertyGenerator(val context: Context, val cls: KtClass) {
     fun generate(propertyIndex: Int) {
         val modifiers = mutableListOf<String>()
         if (cls.isInterface()) {
-            modifiers.add(Policy.nonPrivatePropertyVisibilityTable().toString())
+            modifiers.add("public")
         } else {
             modifiers.add(Policy.propertyVisibilityTable().toString())
         }

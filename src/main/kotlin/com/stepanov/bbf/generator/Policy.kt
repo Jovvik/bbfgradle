@@ -31,6 +31,10 @@ object Policy {
 
     fun enumValueLimit() = uniformDistribution(1, 10)
 
+    fun functionParameterLimit() = uniformDistribution(0, 3)
+
+    fun functionLimit() = uniformDistribution(0, 3)
+
     fun nestedClassLimit() = uniformDistribution(1, 3)
 
     fun propertyLimit() = uniformDistribution(5, 10)
@@ -73,7 +77,7 @@ object Policy {
     fun provideArgumentWithDefaultValue() = bernoulliDistribution(0.5)
 
     // tmp
-    private fun inheritedClassCount() = uniformDistribution(1, 3)
+    private fun inheritedClassCount() = 0
 
     // tmp
     private fun inheritClass() = bernoulliDistribution(0.5)

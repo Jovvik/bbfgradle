@@ -33,11 +33,13 @@ class ClassGenerator(val context: Context, val file: KtFile) {
     }
 
     private fun generateInterface() {
-        val cls = createClass("interface")
+        val cls = createClass("interface", withPrimaryConstructor = false)
         val propertyGenerator = PropertyGenerator(context, cls)
         repeat(Policy.propertyLimit()) {
             propertyGenerator.generate(it)
         }
+        addFunctions(cls)
+        saveClass(cls)
     }
 
     private fun addUnimplementedProperties() {
@@ -83,7 +85,6 @@ class ClassGenerator(val context: Context, val file: KtFile) {
                 null
             )
         }
-        saveClass(cls)
     }
 
     private fun generateClass(
@@ -118,6 +119,7 @@ class ClassGenerator(val context: Context, val file: KtFile) {
         repeat(Policy.propertyLimit()) {
             propertyGenerator.generate(it)
         }
+        addFunctions(cls)
         if (containingClass != null) {
             cls = containingClass.addPsiToBody(cls) as KtClass
         }
@@ -190,7 +192,8 @@ class ClassGenerator(val context: Context, val file: KtFile) {
         keyword: String,
         classModifiers: List<String> = emptyList(),
         typeParameters: List<KtTypeParameter> = emptyList(),
-        inheritedClasses: List<Triple<String, List<ClassOrBasicType>, KtClass>> = emptyList()
+        inheritedClasses: List<Triple<String, List<ClassOrBasicType>, KtClass>> = emptyList(),
+        withPrimaryConstructor: Boolean = true
     ): KtClass {
         val typeParameterBrackets = if (typeParameters.isEmpty()) "" else "<>"
         val inheritanceBlock =
@@ -206,10 +209,18 @@ class ClassGenerator(val context: Context, val file: KtFile) {
                     )
                 }
             }
+        val primaryConstructor = if (withPrimaryConstructor) "()" else ""
         val classText =
-            "${classModifiers.joinToString(" ")} $keyword Class${context.customClasses.size}$typeParameterBrackets() $inheritanceBlock {\n}"
+            "${classModifiers.joinToString(" ")} $keyword Class${context.customClasses.size}$typeParameterBrackets$primaryConstructor$inheritanceBlock {\n}"
 //        println(classText)
         return Factory.psiFactory.createClass(classText)
+    }
+
+    private fun addFunctions(cls: KtClass) {
+        val functionGenerator = FunctionGenerator(context, file, cls)
+        repeat(Policy.functionLimit()) {
+            functionGenerator.generate(it)
+        }
     }
 
     private fun nameForConstructor(clsOrBasic: ClassOrBasicType) = nameForConstructor(clsOrBasic.name)
