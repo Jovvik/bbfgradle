@@ -8,31 +8,47 @@ import java.lang.Integer.min
 import kotlin.random.Random
 
 object Policy {
-    fun classLimit() = 30
 
-    fun isAbstract() = bernoulliDistribution(0.5)
+    // utils
 
-    fun isDataclass() = bernoulliDistribution(0.5)
+    private fun uniformDistribution(min: Int, max: Int): Int {
+        return Random.nextInt(min, max)
+    }
 
-    fun isEnum() = bernoulliDistribution(0.3)
+    private fun bernoulliDistribution(p: Double): Boolean {
+        return Random.nextDouble() < p
+    }
+
+    // hard limits
+
+    const val maxNestedClassDepth = 3
+
+    const val maxTypeParameterDepth = 2
+
+    // soft limits
+
+    fun classLimit() = 20
 
     fun enumValueLimit() = uniformDistribution(1, 10)
+
+    fun nestedClassLimit() = uniformDistribution(1, 3)
+
+    fun propertyLimit() = uniformDistribution(5, 10)
+
+    // tmp
+    fun typeParameterLimit() = 0
+
+    // stuff
+
+    fun isAbstract() = bernoulliDistribution(0.5)
 
     fun isInner() = bernoulliDistribution(0.3)
 
     // tmp
     fun isOpen() = bernoulliDistribution(0.0)
 
-    fun propertyLimit() = uniformDistribution(5, 10)
-
-    fun nestedClassLimit() = uniformDistribution(1, 3)
-
     // TODO
     fun isSealed() = false
-
-    const val maxNestedClassDepth = 3
-
-    const val maxTypeParameterDepth = 2
 
     // tmp until instance generator
     fun isAbstractProperty() = bernoulliDistribution(1.0)
@@ -46,9 +62,6 @@ object Policy {
     private fun useCustomClass() = bernoulliDistribution(0.5)
 
     private fun useBasicType() = bernoulliDistribution(0.3)
-
-    // tmp
-    fun typeParameterLimit() = 0
 
     /**
      * Whether to to use `bar` in a `foo` function call in the following situation:
@@ -65,25 +78,28 @@ object Policy {
     // tmp
     private fun inheritClass() = bernoulliDistribution(0.5)
 
-    private fun uniformDistribution(min: Int, max: Int): Int {
-        return Random.nextInt(min, max)
+    // tables
+
+    enum class ClassKind {
+        DATA, INTERFACE, ENUM, REGULAR
     }
 
-    private fun bernoulliDistribution(p: Double): Boolean {
-        return Random.nextDouble() < p
+    val classKindTable = ProbabilityTable(ClassKind.values())
+
+    enum class Visibility {
+        PUBLIC, PROTECTED, PRIVATE;
+
+        override fun toString() = this.name.lowercase()
     }
 
-    // TODO: add probability tweaking
-    // TODO: proper typing
-    fun propertyVisibility(): String {
-        return listOf("public", "protected", "private").random()
-    }
+    val propertyVisibilityTable = ProbabilityTable(Visibility.values())
 
-    fun variance(): Variance {
-        return listOf(Variance.INVARIANT, Variance.IN_VARIANCE, Variance.OUT_VARIANCE).random()
-    }
+    val nonPrivatePropertyVisibilityTable = ProbabilityTable(listOf(Visibility.PUBLIC, Visibility.PROTECTED))
 
-    // TODO: nullable versions
+    val varianceTable = ProbabilityTable(Variance.values())
+
+    // functions with complex logic
+
     fun chooseType(context: Context, typeParameterList: List<KtTypeParameter>, depth: Int = 0): ClassOrBasicType {
         val canUseTypeParameter = typeParameterList.any { it.variance != Variance.IN_VARIANCE }
         val canUseCustomClass = context.customClasses.any { !it.isAbstract() }
@@ -91,7 +107,7 @@ object Policy {
             (!canUseCustomClass && !canUseTypeParameter) || useBasicType() -> ClassOrBasicType(BasicTypeGenerator().generate())
             canUseCustomClass && (!canUseTypeParameter || useCustomClass()) -> {
                 val cls = context.customClasses.filter { !it.isAbstract() }.random()
-                return ClassOrBasicType(cls.getFullyQualifiedName(context, emptyList(), false, depth + 1), cls)
+                return ClassOrBasicType(cls.getFullyQualifiedName(context, emptyList(), false, depth + 1).first, cls)
             }
             else -> {
                 ClassOrBasicType(typeParameterList.filter { it.variance != Variance.IN_VARIANCE }.random().name!!)
@@ -104,43 +120,18 @@ object Policy {
         context: Context,
         typeParameterList: List<KtTypeParameter>,
         depth: Int = 0
-    ): ClassOrBasicType {
-        val typeParameters = cls.typeParameterList?.parameters?.joinToString(", ", "<", ">") {
-            randomTypeParameterValue(it, context, typeParameterList, depth).name
-        } ?: ""
-        return ClassOrBasicType(cls.name!! + typeParameters, cls)
+    ): Pair<ClassOrBasicType, List<ClassOrBasicType>> {
+        val typeParameters =
+            cls.typeParameterList?.parameters?.map { randomTypeParameterValue(it, context, typeParameterList, depth) }
+        val tmp = typeParameters?.joinToString(", ", "<", ">") { it.name } ?: ""
+        return Pair(
+            ClassOrBasicType(cls.name!! + tmp, cls),
+            typeParameters ?: emptyList()
+        )
     }
 
     fun randomConst(type: ClassOrBasicType, context: Context): String {
         TODO("Will use other generator")
-        /*if (type.hasTypeParameters) {
-            throw IllegalArgumentException("Cannot generate constants of generic types")
-        }
-        val typeName = type.name.substringAfterLast(".")
-        return when (typeName) {
-            // TODO: generate constants either with small magnitude or around limits
-            "Int" -> Random.nextInt()
-            "Long" -> Random.nextLong()
-            "Boolean" -> Random.nextBoolean()
-            // TODO: more interesting distribution
-            "Float" -> Random.nextFloat().toString() + "f"
-            "Double" -> Random.nextDouble()
-            else -> {
-                println(type.name)
-                val cls = type.cls ?: throw IllegalArgumentException("Type is not basic but has no associated KtClass")
-                return if (cls.isEnum()) {
-                    cls.getFullyQualifiedName(context, false) + "." +
-                            cls.declarations.filterIsInstance<KtEnumEntry>().random().name
-                } else {
-                    val parameters = cls.getPrimaryConstructorParameterList()!!.parameters
-                    parameters.joinToString(
-                        ", ",
-                        "${cls.getFullyQualifiedName(context, false)}(",
-                        ")"
-                    ) { randomConst(ClassOrBasicType(it.typeReference!!.text), context) }
-                }
-            }
-        }.toString()*/
     }
 
     private fun randomTypeParameterValue(
@@ -166,7 +157,7 @@ object Policy {
         }
     }
 
-    // TODO: resolve inheritance conflicts?
+    // TODO: inheritance conflicts?
     // TODO: O(context.customClasses.size), could be O(inheritedClassCount)
     fun inheritedClasses(context: Context): List<KtClass> {
         val inheritedClassCount = inheritedClassCount()
@@ -174,7 +165,7 @@ object Policy {
             return emptyList()
         }
         val result = mutableListOf<KtClass>()
-        if (useCustomClass() && context.customClasses.any { it.isInheritableClass() }) {
+        if (inheritClass() && context.customClasses.any { it.isInheritableClass() }) {
             result.add(context.customClasses.filter { it.isInheritableClass() }.random())
         }
         result.addAll(context.customClasses.filter { it.isInterface() }

@@ -10,28 +10,35 @@ fun KtClass.getFullyQualifiedName(
     context: Context,
     typeParameterList: List<KtTypeParameter>,
     withConstructors: Boolean,
-    depth: Int,
+    depth: Int = 0,
     withTypeParameters: Boolean = true
-): String {
+): Pair<String, List<ClassOrBasicType>> {
     val containingClass = containingClass()
-    val resolvedThis = Policy.resolveTypeParameters(this, context, typeParameterList, depth).name
-    return if (containingClass == null) {
+    val (resolvedThis, chosenTypeParameters) = Policy.resolveTypeParameters(this, context, typeParameterList, depth)
+    val resolvedTotal = if (containingClass == null) {
         ""
     } else {
         if (isInner() && withConstructors) {
             Policy.randomConst(ClassOrBasicType(containingClass.name!!, containingClass), context)
         } else {
-            containingClass.getFullyQualifiedName(context, typeParameterList, withConstructors, depth, isInner())
+            containingClass.getFullyQualifiedName(
+                context,
+                typeParameterList,
+                withConstructors,
+                depth,
+                isInner()
+            ).first
         } + "."
     } + if (withTypeParameters) {
-        resolvedThis
+        resolvedThis.name
     } else {
         name!!
     }
+    return Pair(resolvedTotal, chosenTypeParameters)
 }
 
 fun KtClass.isInheritableClass(): Boolean {
-    return !isInterface() && (isSealed() || isInterface() || isAbstract() || hasModifier(KtTokens.OPEN_KEYWORD))
+    return !isInterface() && !isInner() && (isSealed() || isInterface() || isAbstract() || hasModifier(KtTokens.OPEN_KEYWORD))
 }
 
 fun indexString(prefix: String, context: Context, vararg index: Int): String {

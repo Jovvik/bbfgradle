@@ -9,15 +9,20 @@ import org.jetbrains.kotlin.types.Variance
 
 class PropertyGenerator(val context: Context, val cls: KtClass) {
     fun generate(propertyIndex: Int) {
-        val modifiers = mutableListOf(Policy.propertyVisibility())
-        if (modifiers.first() != "private" && cls.isAbstract() && Policy.isAbstractProperty()) {
+        val modifiers = mutableListOf<String>()
+        if (cls.isInterface()) {
+            modifiers.add(Policy.nonPrivatePropertyVisibilityTable().toString())
+        } else {
+            modifiers.add(Policy.propertyVisibilityTable().toString())
+        }
+        if (cls.isInterface() || (modifiers.first() != "private" && cls.isAbstract() && Policy.isAbstractProperty())) {
             modifiers.add("abstract")
         }
         val type = Policy.chooseType(context, cls.typeParameters)
         val name = indexString("property", context, propertyIndex)
         val typeParameter = cls.typeParameters.firstOrNull { it.name == type.name }
         // abstract case is tmp until instance generator
-        if (!modifiers.contains("abstract") || typeParameter != null || type.hasTypeParameters || Policy.isDefinedInConstructor()) {
+        if (!cls.isInterface() && (!modifiers.contains("abstract") || typeParameter != null || type.hasTypeParameters || Policy.isDefinedInConstructor())) {
             addConstructorArgument(name, type, typeParameter)
         } else {
             cls.addPsiToBody(
