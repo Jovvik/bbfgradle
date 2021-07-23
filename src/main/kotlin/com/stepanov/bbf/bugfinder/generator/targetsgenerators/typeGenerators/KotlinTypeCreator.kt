@@ -18,9 +18,17 @@ object KotlinTypeCreator {
 
     fun createType(file: KtFile, type: String): KotlinType? {
         val vtype =
-            if (type.contains('<') && type.substringBefore('<').contains('.'))
-                type.substringBefore('<').substringAfterLast('.') + "<" + type.substringAfter('<')
-            else type
+            if (type.contains('<')) {
+                val substringBeforeDot = type.substringBefore('<').substringBeforeLast('.')
+                //TODO!! Rewrite this!!
+                if (substringBeforeDot.split(".").all { it[0].isUpperCase() }) {
+                    type
+                } else {
+                    type.substringBefore('<').substringAfterLast('.') + "<" + type.substringAfter('<')
+                }
+            } else {
+                type
+            }
         if (vtype.contains("??") || vtype.contains("ERROR")) return null
         val fileCopy = file.copy() as KtFile
         val prefix = fileCopy.packageDirective?.text + "\n" + fileCopy.importList?.text + "\n"
