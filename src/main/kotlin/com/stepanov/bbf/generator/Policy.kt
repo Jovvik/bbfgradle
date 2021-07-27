@@ -1,8 +1,9 @@
 package com.stepanov.bbf.generator
 
+import com.stepanov.bbf.bugfinder.generator.targetsgenerators.typeGenerators.RandomTypeGenerator
 import org.jetbrains.kotlin.psi.KtClass
 import org.jetbrains.kotlin.psi.KtTypeParameter
-import org.jetbrains.kotlin.psi.psiUtil.isAbstract
+import org.jetbrains.kotlin.types.KotlinType
 import org.jetbrains.kotlin.types.Variance
 import java.lang.Integer.min
 import kotlin.random.Random
@@ -23,11 +24,9 @@ object Policy {
 
     const val maxNestedClassDepth = 3
 
-    const val maxTypeParameterDepth = 2
-
     // soft limits
 
-    fun classLimit() = 20
+    fun classLimit() = 15
 
     fun enumValueLimit() = uniformDistribution(1, 10)
 
@@ -37,22 +36,19 @@ object Policy {
 
     fun nestedClassLimit() = uniformDistribution(1, 3)
 
-    fun propertyLimit() = uniformDistribution(5, 10)
+    fun propertyLimit() = uniformDistribution(1, 4)
 
-    // tmp
-    fun typeParameterLimit() = 0
+    fun typeParameterLimit() = uniformDistribution(0, 3)
 
     // stuff
 
-    fun isAbstract() = bernoulliDistribution(0.5)
+    fun isAbstract() = bernoulliDistribution(0.4)
 
     fun isInner() = bernoulliDistribution(0.3)
 
-    // tmp
-    fun isOpen() = bernoulliDistribution(0.0)
+    fun isOpen() = bernoulliDistribution(0.1)
 
-    // TODO
-    fun isSealed() = false
+    fun isSealed() = bernoulliDistribution(0.1)
 
     // tmp until instance generator
     fun isAbstractProperty() = bernoulliDistribution(1.0)
@@ -62,10 +58,6 @@ object Policy {
     fun hasDefaultValue() = false
 
     fun isVar() = bernoulliDistribution(0.5)
-
-    private fun useCustomClass() = bernoulliDistribution(0.5)
-
-    private fun useBasicType() = bernoulliDistribution(0.3)
 
     /**
      * Whether to to use `bar` in a `foo` function call in the following situation:
@@ -77,7 +69,7 @@ object Policy {
     fun provideArgumentWithDefaultValue() = bernoulliDistribution(0.5)
 
     // tmp
-    private fun inheritedClassCount() = 0
+    private fun inheritedClassCount() = uniformDistribution(1, 3)
 
     // tmp
     private fun inheritClass() = bernoulliDistribution(0.5)
@@ -98,67 +90,44 @@ object Policy {
 
     val propertyVisibilityTable = ProbabilityTable(Visibility.values())
 
-    val nonPrivatePropertyVisibilityTable = ProbabilityTable(listOf(Visibility.PUBLIC, Visibility.PROTECTED))
-
     val varianceTable = ProbabilityTable(Variance.values())
 
     // functions with complex logic
 
-    fun chooseType(context: Context, typeParameterList: List<KtTypeParameter>, depth: Int = 0): ClassOrBasicType {
-        val canUseTypeParameter = typeParameterList.any { it.variance != Variance.IN_VARIANCE }
-        val canUseCustomClass = context.customClasses.any { !it.isAbstract() }
+    fun chooseType(typeParameterList: List<KtTypeParameter>, vararg allowedVariance: Variance): KtTypeOrTypeParam {
+        val canUseTypeParameter = typeParameterList.any { it.variance in allowedVariance }
         return when {
-            (!canUseCustomClass && !canUseTypeParameter) || useBasicType() -> ClassOrBasicType(BasicTypeGenerator().generate())
-            canUseCustomClass && (!canUseTypeParameter || useCustomClass()) -> {
-                val cls = context.customClasses.filter { !it.isAbstract() }.random()
-                return ClassOrBasicType(cls.getFullyQualifiedName(context, emptyList(), false, depth + 1).first, cls)
+            canUseTypeParameter && useTypeParameter() -> {
+                KtTypeOrTypeParam.Parameter(typeParameterList.filter { it.variance in allowedVariance }
+                    .random())
             }
             else -> {
-                ClassOrBasicType(typeParameterList.filter { it.variance != Variance.IN_VARIANCE }.random().name!!)
+                KtTypeOrTypeParam.Type(RandomTypeGenerator.generateRandomTypeWithCtx()!!)
             }
         }
     }
 
-    fun resolveTypeParameters(
-        cls: KtClass,
-        context: Context,
-        typeParameterList: List<KtTypeParameter>,
-        depth: Int = 0
-    ): Pair<ClassOrBasicType, List<ClassOrBasicType>> {
+    private fun useTypeParameter() = bernoulliDistribution(0.2)
+
+    fun resolveTypeParameters(cls: KtClass): Pair<ClassOrBasicType, List<KotlinType>> {
         val typeParameters =
-            cls.typeParameterList?.parameters?.map { randomTypeParameterValue(it, context, typeParameterList, depth) }
-        val tmp = typeParameters?.joinToString(", ", "<", ">") { it.name } ?: ""
+            cls.typeParameterList?.parameters?.mapNotNull { randomTypeParameterValue(it) }
+        val tmp = typeParameters?.joinToString(", ", "<", ">") ?: ""
         return Pair(
             ClassOrBasicType(cls.name!! + tmp, cls),
             typeParameters ?: emptyList()
         )
     }
 
-    fun randomConst(type: ClassOrBasicType, context: Context): String {
+    fun randomConst(type: KotlinType, context: Context): String {
         TODO("Will use other generator")
     }
 
-    private fun randomTypeParameterValue(
-        typeParameter: KtTypeParameter,
-        context: Context,
-        typeParameterList: List<KtTypeParameter>,
-        depth: Int
-    ): ClassOrBasicType {
-        return when {
-            typeParameter.extendsBound != null -> {
-                // temporary until proper inheritance is implemented
-                ClassOrBasicType(typeParameter.extendsBound!!.name!!)
-            }
-//            cls.parameterValues.containsKey(typeParameter) -> {
-//                ClassWithTypeParameters(cls.parameterValues[typeParameter]!!)
-//            }
-            depth >= maxTypeParameterDepth -> {
-                ClassOrBasicType(BasicTypeGenerator().generate())
-            }
-            else -> {
-                chooseType(context, typeParameterList, depth + 1)
-            }
-        }
+
+    private fun randomTypeParameterValue(typeParameter: KtTypeParameter): KotlinType? {
+        return RandomTypeGenerator.generateRandomTypeWithCtx(typeParameter.extendsBound?.text?.let {
+            RandomTypeGenerator.generateType(it)
+        })
     }
 
     // TODO: inheritance conflicts?

@@ -3,23 +3,23 @@ package com.stepanov.bbf.generator
 import com.stepanov.bbf.bugfinder.mutator.transformations.Factory
 import com.stepanov.bbf.bugfinder.util.addAtTheEnd
 import com.stepanov.bbf.bugfinder.util.addPsiToBody
-import com.stepanov.bbf.generator.Policy.chooseType
 import org.jetbrains.kotlin.psi.KtClass
 import org.jetbrains.kotlin.psi.KtFile
+import org.jetbrains.kotlin.psi.KtTypeParameter
+import org.jetbrains.kotlin.types.Variance
 
 class FunctionGenerator(val context: Context, val file: KtFile, val containingClass: KtClass? = null) {
     fun generate(index: Int) {
-        val returnType = chooseType()
-        // pasted
         val typeParameters = (0 until Policy.typeParameterLimit()).map {
             Factory.psiFactory.createTypeParameter("T_$it")
         }
+        val returnType = chooseType(typeParameters, false)
         val fn =
             Factory.psiFactory.createFunction("fun ${if (typeParameters.isEmpty()) "" else "<> "}${getName(index)}(): ${returnType.name} = TODO()")
-        typeParameters.forEach { fn.typeParameters.add(it) }
+        typeParameters.forEach { fn.typeParameterList!!.addParameter(it) }
         repeat(Policy.functionParameterLimit()) {
-            // doesn't do what's expected
-            fn.valueParameterList!!.add(Factory.psiFactory.createParameter("param_$it : ${chooseType()}"))
+            val chosenType = chooseType(typeParameters, true)
+            fn.valueParameterList!!.addParameter(Factory.psiFactory.createParameter("param_$it : ${chosenType.name}"))
         }
         if (containingClass != null) {
             containingClass.addPsiToBody(fn)
@@ -28,7 +28,13 @@ class FunctionGenerator(val context: Context, val file: KtFile, val containingCl
         }
     }
 
-    private fun chooseType() = chooseType(context, containingClass?.typeParameters ?: emptyList())
+    private fun chooseType(typeParameters: List<KtTypeParameter>, isValueArgument: Boolean): KtTypeOrTypeParam {
+        return Policy.chooseType(
+            typeParameters + containingClass?.typeParameters.orEmpty(),
+            Variance.INVARIANT,
+            if (isValueArgument) Variance.IN_VARIANCE else Variance.OUT_VARIANCE
+        )
+    }
 
     private fun getName(index: Int): String {
         return if (containingClass == null) {

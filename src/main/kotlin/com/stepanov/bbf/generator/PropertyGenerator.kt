@@ -18,7 +18,7 @@ class PropertyGenerator(val context: Context, val cls: KtClass) {
         if (cls.isInterface() || (modifiers.first() != "private" && cls.isAbstract() && Policy.isAbstractProperty())) {
             modifiers.add("abstract")
         }
-        val type = Policy.chooseType(context, cls.typeParameters)
+        val type = Policy.chooseType(cls.typeParameters)
         val name = indexString("property", context, propertyIndex)
         val typeParameter = cls.typeParameters.firstOrNull { it.name == type.name }
         // abstract case is tmp until instance generator
@@ -31,7 +31,10 @@ class PropertyGenerator(val context: Context, val cls: KtClass) {
                     name,
                     type.name,
                     Policy.isVar(),
-                    if (modifiers.contains("abstract")) null else Policy.randomConst(type, context)
+                    if (modifiers.contains("abstract")) null else Policy.randomConst(
+                        (type as KtTypeOrTypeParam.Type).type,
+                        context
+                    )
                 )
             )
         }
@@ -39,7 +42,7 @@ class PropertyGenerator(val context: Context, val cls: KtClass) {
 
     fun addConstructorArgument(
         name: String,
-        type: ClassOrBasicType,
+        type: KtTypeOrTypeParam,
         typeParameter: KtTypeParameter?,
         isOverride: Boolean = false,
         forceVar: Boolean? = null
@@ -61,9 +64,9 @@ class PropertyGenerator(val context: Context, val cls: KtClass) {
                 type.name
             )
         )
-        if (typeParameter == null && !type.hasTypeParameters && Policy.hasDefaultValue()) {
+        if (typeParameter == null && !type.hasTypeParameters && type !is KtTypeOrTypeParam.Parameter && Policy.hasDefaultValue()) {
             parameterTokens.add("=")
-            parameterTokens.add(Policy.randomConst(type, context))
+            parameterTokens.add(Policy.randomConst((type as KtTypeOrTypeParam.Type).type, context))
         }
         cls.getPrimaryConstructorParameterList()!!
             .addParameter(Factory.psiFactory.createParameter(parameterTokens.joinToString(" ")))

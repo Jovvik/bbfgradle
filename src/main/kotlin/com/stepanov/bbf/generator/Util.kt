@@ -2,28 +2,24 @@ package com.stepanov.bbf.generator
 
 import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.psi.KtClass
-import org.jetbrains.kotlin.psi.KtTypeParameter
 import org.jetbrains.kotlin.psi.psiUtil.containingClass
 import org.jetbrains.kotlin.psi.psiUtil.isAbstract
+import org.jetbrains.kotlin.types.KotlinType
 
 fun KtClass.getFullyQualifiedName(
-    context: Context,
-    typeParameterList: List<KtTypeParameter>,
     withConstructors: Boolean,
     depth: Int = 0,
     withTypeParameters: Boolean = true
-): Pair<String, List<ClassOrBasicType>> {
+): Pair<String, List<KotlinType>> {
     val containingClass = containingClass()
-    val (resolvedThis, chosenTypeParameters) = Policy.resolveTypeParameters(this, context, typeParameterList, depth)
+    val (resolvedThis, chosenTypeParameters) = Policy.resolveTypeParameters(this)
     val resolvedTotal = if (containingClass == null) {
         ""
     } else {
         if (isInner() && withConstructors) {
-            Policy.randomConst(ClassOrBasicType(containingClass.name!!, containingClass), context)
+            throw IllegalArgumentException("Cannot generate random constants yet")
         } else {
             containingClass.getFullyQualifiedName(
-                context,
-                typeParameterList,
                 withConstructors,
                 depth,
                 isInner()
