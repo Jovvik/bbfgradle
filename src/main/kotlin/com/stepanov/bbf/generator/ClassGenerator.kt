@@ -34,6 +34,10 @@ class ClassGenerator(val context: Context, val file: KtFile) {
             }
         }
         addUnimplemented()
+        val functionGenerator = FunctionGenerator(context, file)
+        repeat(Policy.freeFunctionLimit()) {
+            functionGenerator.generate(it)
+        }
     }
 
     private fun generateInterface() {
@@ -115,6 +119,7 @@ class ClassGenerator(val context: Context, val file: KtFile) {
         }
     }
 
+    // TODO: functions
     private fun addUnimplemented() {
         for (cls in file.getAllPSIChildrenOfType<KtClass>()
                 .filter { it.name?.startsWith(CLASS_PREFIX) ?: false }
@@ -218,7 +223,7 @@ class ClassGenerator(val context: Context, val file: KtFile) {
         when {
             !isInner && Policy.isSealed() -> classModifiers.add("sealed")
             Policy.isOpen() -> classModifiers.add("open")
-            Policy.isAbstract() -> classModifiers.add("abstract")
+            Policy.isAbstractClass() -> classModifiers.add("abstract")
         }
         return Pair(classModifiers, isInner)
     }

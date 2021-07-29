@@ -30,6 +30,8 @@ object Policy {
 
     fun enumValueLimit() = uniformDistribution(1, 10)
 
+    fun freeFunctionLimit() = uniformDistribution(1, 10)
+
     fun functionParameterLimit() = uniformDistribution(0, 3)
 
     fun functionLimit() = uniformDistribution(0, 3)
@@ -42,7 +44,18 @@ object Policy {
 
     // stuff
 
-    fun isAbstract() = bernoulliDistribution(0.4)
+    fun isAbstractClass() = bernoulliDistribution(0.4)
+
+    // tmp until instance generator
+    fun isAbstractProperty() = bernoulliDistribution(1.0)
+
+    fun isAbstractFunction() = bernoulliDistribution(0.5)
+
+    fun isDefinedInConstructor() = bernoulliDistribution(0.5)
+
+    fun isInfixFunction() = bernoulliDistribution(0.2)
+
+    fun isInlineFunction() = bernoulliDistribution(0.2)
 
     fun isInner() = bernoulliDistribution(0.3)
 
@@ -50,14 +63,9 @@ object Policy {
 
     fun isSealed() = bernoulliDistribution(0.1)
 
-    // tmp until instance generator
-    fun isAbstractProperty() = bernoulliDistribution(1.0)
-
-    fun isDefinedInConstructor() = bernoulliDistribution(0.5)
+    fun isVar() = bernoulliDistribution(0.5)
 
     fun hasDefaultValue() = false
-
-    fun isVar() = bernoulliDistribution(0.5)
 
     /**
      * Whether to use `bar` in a `foo` function call in the following situation:
@@ -84,7 +92,9 @@ object Policy {
         DATA, INTERFACE, ENUM, REGULAR
     }
 
+
     val classKindTable = ProbabilityTable(ClassKind.values())
+
 
     enum class Visibility {
 
@@ -112,6 +122,7 @@ object Policy {
         }
     }
 
+
     fun resolveTypeParameters(cls: KtClass): Pair<ClassOrBasicType, List<KotlinType>> {
         val typeParameters =
             cls.typeParameterList?.parameters?.mapNotNull { randomTypeParameterValue(it) }
@@ -125,7 +136,6 @@ object Policy {
     fun randomConst(type: KotlinType, context: Context): String {
         TODO("Will use other generator")
     }
-
 
     private fun randomTypeParameterValue(typeParameter: KtTypeParameter): KotlinType? {
         return RandomTypeGenerator.generateRandomTypeWithCtx(typeParameter.extendsBound?.text?.let {
