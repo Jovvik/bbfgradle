@@ -70,12 +70,12 @@ object Policy {
     fun provideArgumentWithDefaultValue() = bernoulliDistribution(0.5)
 
     // tmp
-    private fun inheritedClassCount() = uniformDistribution(1, 3)
-
-    private fun inheritClass() = bernoulliDistribution(0.5)
+    private fun inheritedClassCount() = 2
 
     // tmp
-    private fun useTypeParameter() = true
+    private fun inheritClass() = true
+
+    private fun useTypeParameter() = bernoulliDistribution(0.3)
 
     // tables
 
@@ -115,7 +115,7 @@ object Policy {
     fun resolveTypeParameters(cls: KtClass): Pair<ClassOrBasicType, List<KotlinType>> {
         val typeParameters =
             cls.typeParameterList?.parameters?.mapNotNull { randomTypeParameterValue(it) }
-        val tmp = typeParameters?.joinToString(", ", "<", ">") ?: ""
+        val tmp = typeParameters?.joinToString(", ", "<", ">").orEmpty()
         return Pair(
             ClassOrBasicType(cls.name!! + tmp, cls),
             typeParameters ?: emptyList()

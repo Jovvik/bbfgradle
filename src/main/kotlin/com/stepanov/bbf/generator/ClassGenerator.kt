@@ -156,7 +156,6 @@ class ClassGenerator(val context: Context, val file: KtFile) {
                 .getDescriptorsFiltered { true }
                 .filterIsInstance<PropertyDescriptor>()
                 .filter { it.toString().contains("abstract") }) {
-            println(propertyDescriptor)
             propertyGenerator.addConstructorArgument(
                 propertyDescriptor.name.asString(),
                 KtTypeOrTypeParam.Type(propertyDescriptor.type),
