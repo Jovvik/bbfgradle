@@ -16,7 +16,8 @@ class FunctionGenerator(val context: Context, val file: KtFile, val containingCl
             Factory.psiFactory.createTypeParameter("T_$it")
         }
         val isInfix = containingClass != null && Policy.isInfixFunction()
-        val isAbstract = containingClass != null && containingClass.isAbstract() && Policy.isAbstractFunction()
+        val isAbstract =
+            containingClass != null && (containingClass.isAbstract() || containingClass.isInterface()) && Policy.isAbstractFunction()
         val fn = createFunction(isInfix, isAbstract, typeParameters, index)
         generateBody(fn)
         typeParameters.forEach { fn.typeParameterList!!.addParameter(it) }
