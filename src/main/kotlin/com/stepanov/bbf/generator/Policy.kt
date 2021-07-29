@@ -34,7 +34,7 @@ object Policy {
 
     fun functionLimit() = uniformDistribution(0, 3)
 
-    fun nestedClassLimit() = uniformDistribution(1, 3)
+    fun nestedClassLimit() = uniformDistribution(0, 3)
 
     fun propertyLimit() = uniformDistribution(1, 4)
 
@@ -60,22 +60,26 @@ object Policy {
     fun isVar() = bernoulliDistribution(0.5)
 
     /**
-     * Whether to to use `bar` in a `foo` function call in the following situation:
+     * Whether to use `bar` in a `foo` function call in the following situation:
      *
      * ```
      * fun foo(bar: T = baz)
      * ```
      */
+    // TODO: how come there's no usage
     fun provideArgumentWithDefaultValue() = bernoulliDistribution(0.5)
 
     // tmp
     private fun inheritedClassCount() = uniformDistribution(1, 3)
 
-    // tmp
     private fun inheritClass() = bernoulliDistribution(0.5)
+
+    // tmp
+    private fun useTypeParameter() = true
 
     // tables
 
+    // TODO: ClassKind exists in libraries, use it
     enum class ClassKind {
         DATA, INTERFACE, ENUM, REGULAR
     }
@@ -83,6 +87,7 @@ object Policy {
     val classKindTable = ProbabilityTable(ClassKind.values())
 
     enum class Visibility {
+
         PUBLIC, PROTECTED, PRIVATE;
 
         override fun toString() = this.name.lowercase()
@@ -99,15 +104,13 @@ object Policy {
         return when {
             canUseTypeParameter && useTypeParameter() -> {
                 KtTypeOrTypeParam.Parameter(typeParameterList.filter { it.variance in allowedVariance }
-                    .random())
+                        .random())
             }
             else -> {
                 KtTypeOrTypeParam.Type(RandomTypeGenerator.generateRandomTypeWithCtx()!!)
             }
         }
     }
-
-    private fun useTypeParameter() = bernoulliDistribution(0.2)
 
     fun resolveTypeParameters(cls: KtClass): Pair<ClassOrBasicType, List<KotlinType>> {
         val typeParameters =
@@ -142,10 +145,10 @@ object Policy {
             result.add(context.customClasses.filter { it.isInheritableClass() }.random())
         }
         result.addAll(context.customClasses.filter { it.isInterface() }
-            .shuffled()
-            .let {
-                it.subList(0, min(inheritedClassCount - 1, it.size))
-            })
+                .shuffled()
+                .let {
+                    it.subList(0, min(inheritedClassCount - 1, it.size))
+                })
         return result
     }
 }

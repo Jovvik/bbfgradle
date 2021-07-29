@@ -8,15 +8,18 @@ import com.stepanov.bbf.bugfinder.util.getAllPSIChildrenOfType
 import com.stepanov.bbf.bugfinder.util.name
 import com.stepanov.bbf.reduktor.parser.PSICreator
 import org.jetbrains.kotlin.cfg.getDeclarationDescriptorIncludingConstructors
-import org.jetbrains.kotlin.descriptors.ClassDescriptor
 import org.jetbrains.kotlin.descriptors.PropertyDescriptor
-import org.jetbrains.kotlin.psi.*
+import org.jetbrains.kotlin.psi.KtClass
+import org.jetbrains.kotlin.psi.KtFile
+import org.jetbrains.kotlin.psi.KtTypeParameter
+import org.jetbrains.kotlin.psi.KtValueArgumentList
 import org.jetbrains.kotlin.psi.psiUtil.isAbstract
 import org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor
 import org.jetbrains.kotlin.resolve.scopes.getDescriptorsFiltered
 import org.jetbrains.kotlin.types.KotlinType
-import org.jetbrains.kotlin.types.replace
+import org.jetbrains.kotlin.types.Variance
 import org.jetbrains.kotlin.types.typeUtil.asTypeProjection
+import org.jetbrains.kotlin.types.typeUtil.isTypeParameter
 
 class ClassGenerator(val context: Context, val file: KtFile) {
     fun generate() {
@@ -30,8 +33,7 @@ class ClassGenerator(val context: Context, val file: KtFile) {
                 Policy.ClassKind.REGULAR -> generateClass(classLimit)
             }
         }
-        addUnimplementedProperties()
-        addPropertiesForConstructor()
+        addUnimplemented()
     }
 
     private fun generateInterface() {
@@ -42,26 +44,6 @@ class ClassGenerator(val context: Context, val file: KtFile) {
         }
         addFunctions(cls)
         saveClass(cls)
-    }
-
-    private fun addUnimplementedProperties() {
-        val bindingContext = PSICreator.analyze(file)!!
-        for (cls in file.getAllPSIChildrenOfType<KtClass>().filter { !it.isAbstract() }) {
-            val propertyGenerator = PropertyGenerator(context, cls)
-            val classDescriptor = cls.getDeclarationDescriptorIncludingConstructors(bindingContext)!! as ClassDescriptor
-            val descrs = classDescriptor.unsubstitutedMemberScope.getDescriptorsFiltered { true }
-            // TODO: write it decently
-            for (propertyDescriptor in descrs.filterIsInstance<PropertyDescriptor>()
-                .filter { it.toString().contains("abstract") }) {
-                propertyGenerator.addConstructorArgument(
-                    propertyDescriptor.name.asString(),
-                    KtTypeOrTypeParam.Type(propertyDescriptor.type),
-                    cls.typeParameters.firstOrNull { it.name == propertyDescriptor.type.name!! },
-                    true,
-                    propertyDescriptor.isVar
-                )
-            }
-        }
     }
 
     private fun generateEnum() {
@@ -80,7 +62,7 @@ class ClassGenerator(val context: Context, val file: KtFile) {
             // maybe properties in body?
             propertyGenerator.addConstructorArgument(
                 indexString("property", context, it),
-                Policy.chooseType(cls.typeParameters),
+                Policy.chooseType(cls.typeParameters, Variance.INVARIANT, Variance.OUT_VARIANCE),
                 null
             )
         }
@@ -133,8 +115,10 @@ class ClassGenerator(val context: Context, val file: KtFile) {
         }
     }
 
-    private fun addPropertiesForConstructor() {
-        for (cls in file.getAllPSIChildrenOfType<KtClass>().sortedBy { it.name }) {
+    private fun addUnimplemented() {
+        for (cls in file.getAllPSIChildrenOfType<KtClass>()
+                .filter { it.name?.startsWith(CLASS_PREFIX) ?: false }
+                .sortedBy { it.name!!.substring(CLASS_PREFIX.length).toInt() }) {
             val ctx = PSICreator.analyze(file)!! // re-analyzing each time since signatures may change
             RandomTypeGenerator.setFileAndContext(file, ctx)
             val propertyGenerator = PropertyGenerator(context, cls)
@@ -143,25 +127,82 @@ class ClassGenerator(val context: Context, val file: KtFile) {
             }
             val (classIndex, inheritedClasses) = propertiesToAdd[cls.name!!]!!
             for ((resolvedName, tps, inheritedClass) in inheritedClasses) {
-                val classDescriptor =
+                val inheritedClassDescriptor =
                     file.getAllPSIChildrenOfType<KtClass>().first { it.name == inheritedClass.name }
-                        .getDeclarationDescriptorIncludingConstructors(ctx)!!
-                val replaced =
-                    (classDescriptor as LazyClassDescriptor).defaultType.replace(tps.map { it.asTypeProjection() })
-                val constructors = (replaced.constructor.declarationDescriptor as LazyClassDescriptor).constructors
-                if (constructors.isEmpty()) {
-                    continue
-                }
-                for (parameter in constructors.first().valueParameters) {
-                    propertyGenerator.addConstructorArgument(
-                        "${parameter.name}_${classIndex}",
-                        KtTypeOrTypeParam.Type(parameter.type),
-                        null // why?
-                    )
-                    val superTypeEntry = cls.superTypeListEntries.first { it.typeReference!!.text == resolvedName }
-                    println(superTypeEntry.children[1] as KtValueArgumentList)
-                }
+                            .getDeclarationDescriptorIncludingConstructors(ctx)!! as LazyClassDescriptor
+                addConstructorParameters(
+                    cls,
+                    inheritedClassDescriptor,
+                    resolvedName,
+                    classIndex,
+                    propertyGenerator,
+                    tps
+                )
+                addProperties(cls, inheritedClassDescriptor, tps, propertyGenerator)
             }
+        }
+    }
+
+    private fun addProperties(
+        cls: KtClass,
+        inheritedClass: LazyClassDescriptor,
+        typeParameters: List<KotlinType>,
+        propertyGenerator: PropertyGenerator
+    ) {
+        if (cls.isAbstract()) {
+            return
+        }
+        for (propertyDescriptor in inheritedClass.getMemberScope(typeParameters.map { it.asTypeProjection() })
+                .getDescriptorsFiltered { true }
+                .filterIsInstance<PropertyDescriptor>()
+                .filter { it.toString().contains("abstract") }) {
+            println(propertyDescriptor)
+            propertyGenerator.addConstructorArgument(
+                propertyDescriptor.name.asString(),
+                KtTypeOrTypeParam.Type(propertyDescriptor.type),
+                cls.typeParameters.firstOrNull { it.name == propertyDescriptor.type.name!! },
+                true,
+                propertyDescriptor.isVar
+            )
+        }
+    }
+
+    private fun addConstructorParameters(
+        cls: KtClass,
+        inheritedClass: LazyClassDescriptor,
+        resolvedName: String,
+        classIndex: Int,
+        propertyGenerator: PropertyGenerator,
+        chosenTypeParameters: List<KotlinType>
+    ) {
+        if (inheritedClass.constructors.isEmpty()) {
+            return
+        }
+//        val primaryConstructor = inheritedClass.substitute(
+//            TypeSubstitutor.create(
+//                inheritedClass.declaredTypeParameters
+//                        .withIndex()
+//                        .associateBy({ it.value.typeConstructor }) {
+//                            chosenTypeParameters[it.index].asTypeProjection()
+//                        }
+//            )
+//        ).constructors.first()
+        for (parameter in inheritedClass.constructors.first().valueParameters) {
+            val name = "${parameter.name}_${classIndex}"
+            val type = if (parameter.type.isTypeParameter()) {
+                val idx = inheritedClass.declaredTypeParameters.withIndex()
+                        .first { it.value.name.asString() == parameter.type.name!! }.index
+                chosenTypeParameters[idx]
+            } else {
+                parameter.type
+            }
+            propertyGenerator.addConstructorArgument(
+                name,
+                KtTypeOrTypeParam.Type(type),
+                null // why?
+            )
+            val argList = cls.superTypeListEntries.first { it.typeReference!!.text == resolvedName }.children[1]
+            (argList as KtValueArgumentList).addArgument(Factory.psiFactory.createArgument(name))
         }
     }
 
@@ -196,17 +237,12 @@ class ClassGenerator(val context: Context, val file: KtFile) {
                 ""
             } else {
                 " : " + inheritedClasses.joinToString(", ") {
-                    it.first + it.third.getPrimaryConstructorParameterList()?.parameters?.joinToString(
-                        ", ",
-                        "(",
-                        ")",
-                        transform = ::nameForConstructor
-                    ).orEmpty()
+                    it.first + if (it.third.getPrimaryConstructorParameterList()?.parameters == null) "" else "()"
                 }
             }
         val primaryConstructor = if (withPrimaryConstructor) "()" else ""
         val classText =
-            "${classModifiers.joinToString(" ")} $keyword Class${context.customClasses.size}$typeParameterBrackets$primaryConstructor$inheritanceBlock {\n}"
+            "${classModifiers.joinToString(" ")} $keyword $CLASS_PREFIX${context.customClasses.size}$typeParameterBrackets$primaryConstructor$inheritanceBlock {\n}"
         return Factory.psiFactory.createClass(classText)
     }
 
@@ -217,16 +253,15 @@ class ClassGenerator(val context: Context, val file: KtFile) {
         }
     }
 
-    private fun nameForConstructor(parameter: KtParameter): String {
-        return "${parameter.name!!}_${context.customClasses.size}"
-    }
-
     private fun saveClass(cls: KtClass) {
         context.customClasses.add(cls)
         file.addAtTheEnd(cls)
     }
 
-    // TODO: make a wrapper
     private val propertiesToAdd =
         mutableMapOf<String, Pair<Int, List<Triple<String, List<KotlinType>, KtClass>>>>()
+
+    companion object {
+        private const val CLASS_PREFIX = "Class"
+    }
 }

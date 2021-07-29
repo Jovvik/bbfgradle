@@ -18,7 +18,7 @@ class PropertyGenerator(val context: Context, val cls: KtClass) {
         if (cls.isInterface() || (modifiers.first() != "private" && cls.isAbstract() && Policy.isAbstractProperty())) {
             modifiers.add("abstract")
         }
-        val type = Policy.chooseType(cls.typeParameters)
+        val type = Policy.chooseType(cls.typeParameters, Variance.INVARIANT, Variance.OUT_VARIANCE)
         val name = indexString("property", context, propertyIndex)
         val typeParameter = cls.typeParameters.firstOrNull { it.name == type.name }
         // abstract case is tmp until instance generator
@@ -69,6 +69,6 @@ class PropertyGenerator(val context: Context, val cls: KtClass) {
             parameterTokens.add(Policy.randomConst((type as KtTypeOrTypeParam.Type).type, context))
         }
         cls.getPrimaryConstructorParameterList()!!
-            .addParameter(Factory.psiFactory.createParameter(parameterTokens.joinToString(" ")))
+                .addParameter(Factory.psiFactory.createParameter(parameterTokens.joinToString(" ")))
     }
 }
