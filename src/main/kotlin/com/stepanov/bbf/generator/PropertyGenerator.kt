@@ -68,7 +68,9 @@ class PropertyGenerator(val context: Context, val cls: KtClass) {
             parameterTokens.add("=")
             parameterTokens.add(Policy.randomConst((type as KtTypeOrTypeParam.Type).type, context))
         }
-        cls.getPrimaryConstructorParameterList()!!
-                .addParameter(Factory.psiFactory.createParameter(parameterTokens.joinToString(" ")))
+        val parameter = Factory.psiFactory.createParameter(parameterTokens.joinToString(" "))
+        if (!cls.getPrimaryConstructorParameterList()!!.parameters.map { it.name!! }.contains(name)) {
+            cls.getPrimaryConstructorParameterList()!!.addParameter(parameter)
+        }
     }
 }
