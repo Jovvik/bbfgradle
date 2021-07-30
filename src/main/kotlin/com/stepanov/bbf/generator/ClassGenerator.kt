@@ -83,7 +83,12 @@ class ClassGenerator(val context: Context, val file: KtFile) {
         // TODO: bounds
         val typeParameters = (0 until Policy.typeParameterLimit()).map {
             val paramName = indexString("T", context, it)
-            Factory.psiFactory.createTypeParameter("${Policy.varianceTable().label} $paramName")
+            val parameter = Factory.psiFactory.createTypeParameter("${Policy.varianceTable().label} $paramName")
+            if (Policy.useBound()) {
+                parameter.extendsBound =
+                    Factory.psiFactory.createType(RandomTypeGenerator.generateRandomTypeWithCtx()!!.toString())
+            }
+            parameter
         }
         val inheritedClasses = Policy.inheritedClasses(context)
         val qualifiedInheritedClasses =

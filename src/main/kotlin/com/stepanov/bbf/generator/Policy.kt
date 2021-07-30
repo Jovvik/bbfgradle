@@ -53,7 +53,7 @@ object Policy {
 
     fun isDefinedInConstructor() = bernoulliDistribution(0.5)
 
-    fun isInfixFunction() = bernoulliDistribution(0.2)
+    fun isInfixFunction() = bernoulliDistribution(0.5)
 
     fun isInlineFunction() = bernoulliDistribution(0.2)
 
@@ -77,13 +77,14 @@ object Policy {
     // TODO: how come there's no usage
     fun provideArgumentWithDefaultValue() = bernoulliDistribution(0.5)
 
-    // tmp
-    private fun inheritedClassCount() = 2
+    private fun inheritedClassCount() = uniformDistribution(0, 3)
 
-    // tmp
-    private fun inheritClass() = true
+    private fun inheritClass() = bernoulliDistribution(0.5)
 
     private fun useTypeParameter() = bernoulliDistribution(0.3)
+
+    // tmp
+    fun useBound() = false
 
     // tables
 
