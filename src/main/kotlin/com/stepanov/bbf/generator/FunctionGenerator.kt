@@ -3,10 +3,7 @@ package com.stepanov.bbf.generator
 import com.stepanov.bbf.bugfinder.mutator.transformations.Factory
 import com.stepanov.bbf.bugfinder.util.addAtTheEnd
 import com.stepanov.bbf.bugfinder.util.addPsiToBody
-import org.jetbrains.kotlin.psi.KtClass
-import org.jetbrains.kotlin.psi.KtFile
-import org.jetbrains.kotlin.psi.KtNamedFunction
-import org.jetbrains.kotlin.psi.KtTypeParameter
+import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi.psiUtil.isAbstract
 import org.jetbrains.kotlin.types.Variance
 
@@ -41,7 +38,16 @@ class FunctionGenerator(val context: Context, val file: KtFile, val containingCl
             return
         }
         val bodyExpression = fn.bodyExpression!!
-        bodyExpression.addBefore(Factory.psiFactory.createExpression("TODO()"), bodyExpression.lastChild)
+        val todo = Factory.psiFactory.createExpression("TODO()")
+        addToBody(bodyExpression, todo)
+    }
+
+    private fun addToBody(
+        bodyExpression: KtExpression,
+        expression: KtExpression
+    ) {
+        bodyExpression.addBefore(expression, bodyExpression.lastChild)
+        bodyExpression.addBefore(Factory.psiFactory.createWhiteSpace("\n"), bodyExpression.lastChild)
     }
 
     private fun createFunction(
