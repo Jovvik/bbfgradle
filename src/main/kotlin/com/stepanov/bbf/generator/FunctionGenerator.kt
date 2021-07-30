@@ -3,6 +3,7 @@ package com.stepanov.bbf.generator
 import com.stepanov.bbf.bugfinder.mutator.transformations.Factory
 import com.stepanov.bbf.bugfinder.util.addAtTheEnd
 import com.stepanov.bbf.bugfinder.util.addPsiToBody
+import org.jetbrains.kotlin.descriptors.FunctionDescriptor
 import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi.psiUtil.isAbstract
 import org.jetbrains.kotlin.types.Variance
@@ -101,5 +102,9 @@ class FunctionGenerator(val context: Context, val file: KtFile, val containingCl
         } else {
             "f_${context.customClasses.size}_$index"
         }
+    }
+
+    // TODO
+    fun generate(descriptor: FunctionDescriptor) {
     }
 }

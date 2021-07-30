@@ -8,6 +8,7 @@ import com.stepanov.bbf.bugfinder.util.getAllPSIChildrenOfType
 import com.stepanov.bbf.bugfinder.util.name
 import com.stepanov.bbf.reduktor.parser.PSICreator
 import org.jetbrains.kotlin.cfg.getDeclarationDescriptorIncludingConstructors
+import org.jetbrains.kotlin.descriptors.FunctionDescriptor
 import org.jetbrains.kotlin.descriptors.PropertyDescriptor
 import org.jetbrains.kotlin.psi.KtClass
 import org.jetbrains.kotlin.psi.KtFile
@@ -80,7 +81,6 @@ class ClassGenerator(val context: Context, val file: KtFile) {
     ) {
         val (classModifiers, isInner) = getClassModifiers(isInner, containingClass)
 
-        // TODO: bounds
         val typeParameters = (0 until Policy.typeParameterLimit()).map {
             val paramName = indexString("T", context, it)
             val parameter = Factory.psiFactory.createTypeParameter("${Policy.varianceTable().label} $paramName")
@@ -132,40 +132,40 @@ class ClassGenerator(val context: Context, val file: KtFile) {
             val ctx = PSICreator.analyze(file)!! // re-analyzing each time since signatures may change
             RandomTypeGenerator.setFileAndContext(file, ctx)
             val propertyGenerator = PropertyGenerator(context, cls)
+            val functionGenerator = FunctionGenerator(context, file, cls)
             if (cls.name!! !in propertiesToAdd) {
                 continue
             }
             val (classIndex, inheritedClasses) = propertiesToAdd[cls.name!!]!!
-            for ((resolvedName, tps, inheritedClass) in inheritedClasses) {
+            for ((resolvedName, typeParameters, inheritedClass) in inheritedClasses) {
                 val inheritedClassDescriptor =
                     file.getAllPSIChildrenOfType<KtClass>().first { it.name == inheritedClass.name }
                             .getDeclarationDescriptorIncludingConstructors(ctx)!! as LazyClassDescriptor
+                val members = inheritedClassDescriptor.getMemberScope(typeParameters.map { it.asTypeProjection() })
+                        .getDescriptorsFiltered { true }
                 addConstructorParameters(
                     cls,
                     inheritedClassDescriptor,
                     resolvedName,
                     classIndex,
                     propertyGenerator,
-                    tps
+                    typeParameters
                 )
-                addProperties(cls, inheritedClassDescriptor, tps, propertyGenerator)
+                addProperties(cls, members.filterIsInstance<PropertyDescriptor>(), propertyGenerator)
+                addFunctions(cls, members.filterIsInstance<FunctionDescriptor>(), functionGenerator)
             }
         }
     }
 
     private fun addProperties(
         cls: KtClass,
-        inheritedClass: LazyClassDescriptor,
-        typeParameters: List<KotlinType>,
+        properties: Collection<PropertyDescriptor>,
         propertyGenerator: PropertyGenerator
     ) {
         if (cls.isAbstract()) {
             return
         }
-        for (propertyDescriptor in inheritedClass.getMemberScope(typeParameters.map { it.asTypeProjection() })
-                .getDescriptorsFiltered { true }
-                .filterIsInstance<PropertyDescriptor>()
-                .filter { it.toString().contains("abstract") }) {
+        for (propertyDescriptor in properties.filter { it.toString().contains("abstract") }) {
             propertyGenerator.addConstructorArgument(
                 propertyDescriptor.name.asString(),
                 KtTypeOrTypeParam.Type(propertyDescriptor.type),
@@ -174,6 +174,18 @@ class ClassGenerator(val context: Context, val file: KtFile) {
                 propertyDescriptor.isVar
             )
         }
+    }
+
+    private fun addFunctions(
+        cls: KtClass,
+        functions: Collection<FunctionDescriptor>,
+        functionGenerator: FunctionGenerator
+    ) {
+        if (cls.isAbstract()) {
+            return
+        }
+        // how to filter for abstract?
+        functions.filter { true }.forEach(functionGenerator::generate)
     }
 
     private fun addConstructorParameters(

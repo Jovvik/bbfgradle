@@ -83,8 +83,7 @@ object Policy {
 
     private fun useTypeParameter() = bernoulliDistribution(0.3)
 
-    // tmp
-    fun useBound() = false
+    fun useBound() = bernoulliDistribution(0.3)
 
     // tables
 
