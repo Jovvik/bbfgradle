@@ -14,7 +14,7 @@ class FunctionGenerator(val context: Context, val file: KtFile, val containingCl
         }
         val isInfix = containingClass != null && Policy.isInfixFunction()
         val isAbstract =
-            containingClass != null && (containingClass.isAbstract() || containingClass.isInterface()) && Policy.isAbstractFunction()
+            containingClass != null && (containingClass.isInterface() || (containingClass.isAbstract() && Policy.isAbstractFunction()))
         val fn = createFunction(isInfix, isAbstract, typeParameters, index)
         generateBody(fn)
         typeParameters.forEach { fn.typeParameterList!!.addParameter(it) }
