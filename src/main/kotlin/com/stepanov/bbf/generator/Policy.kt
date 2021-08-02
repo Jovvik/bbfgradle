@@ -87,17 +87,13 @@ object Policy {
 
     // tables
 
-    // TODO: ClassKind exists in libraries, use it
     enum class ClassKind {
         DATA, INTERFACE, ENUM, REGULAR
     }
 
-
     val classKindTable = ProbabilityTable(ClassKind.values())
 
-
     enum class Visibility {
-
         PUBLIC, PROTECTED, PRIVATE;
 
         override fun toString() = this.name.lowercase()

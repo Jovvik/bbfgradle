@@ -16,15 +16,41 @@ class FunctionGenerator(val context: Context, val file: KtFile, val containingCl
         val isInfix = containingClass != null && Policy.isInfixFunction()
         val isAbstract =
             containingClass != null && (containingClass.isInterface() || (containingClass.isAbstract() && Policy.isAbstractFunction()))
-        val fn = createFunction(isInfix, isAbstract, typeParameters, index)
+        val parameterCount = if (isInfix) 1 else Policy.functionParameterLimit()
+        val valueParameters = (0 until parameterCount).map { generateParameter(typeParameters, it) }
+        generate(
+            getName(index),
+            typeParameters,
+            valueParameters,
+            isInfix,
+            isAbstract,
+            false
+        )
+    }
+
+    fun generate(descriptor: FunctionDescriptor) = generate(
+        descriptor.name.asString(),
+        descriptor.typeParameters.map { Factory.psiFactory.createTypeParameter(it.name.asString()) },
+        descriptor.valueParameters.map { Factory.psiFactory.createParameter("${it.name} : ${it.type}") },
+        descriptor.isInfix,
+        isAbstract = false,
+        isOverride = true,
+        returnType = if (descriptor.returnType == null) null else KtTypeOrTypeParam.Type(descriptor.returnType!!)
+    )
+
+    private fun generate(
+        name: String,
+        typeParameters: List<KtTypeParameter>,
+        valueParameters: List<KtParameter>,
+        isInfix: Boolean,
+        isAbstract: Boolean,
+        isOverride: Boolean,
+        returnType: KtTypeOrTypeParam? = chooseType(typeParameters, false),
+    ) {
+        val fn = createFunction(isInfix, isAbstract, isOverride, typeParameters, name, returnType)
         generateBody(fn)
         typeParameters.forEach { fn.typeParameterList!!.addParameter(it) }
-        val parameterCount = if (isInfix) 1 else Policy.functionParameterLimit()
-        repeat(parameterCount) {
-            // TODO: when default parameter values are implemented,
-            // pass `isInfixFunction` since it prohibits default parameter values
-            generateParameter(typeParameters, fn, it)
-        }
+        valueParameters.forEach { fn.valueParameterList!!.addParameter(it) }
         if (containingClass != null) {
             containingClass.addPsiToBody(fn)
         } else {
@@ -54,24 +80,28 @@ class FunctionGenerator(val context: Context, val file: KtFile, val containingCl
     private fun createFunction(
         isInfix: Boolean,
         isAbstract: Boolean,
+        isOverride: Boolean,
         typeParameters: List<KtTypeParameter>,
-        index: Int
+        name: String,
+        returnType: KtTypeOrTypeParam?
     ): KtNamedFunction {
-        val modifiers = getModifiers(isInfix, isAbstract)
-        val returnType = chooseType(typeParameters, false)
+        val modifiers = getModifiers(isInfix, isAbstract, isOverride)
         val body = if (isAbstract) "" else "{\n}"
         return Factory.psiFactory.createFunction(
-            "$modifiers fun ${if (typeParameters.isEmpty()) "" else "<> "}${getName(index)}(): ${returnType.name} $body"
+            "$modifiers fun ${if (typeParameters.isEmpty()) "" else "<> "}$name(): ${returnType?.name.orEmpty()} $body"
         )
     }
 
-    private fun getModifiers(isInfix: Boolean, isAbstract: Boolean): String {
+    private fun getModifiers(isInfix: Boolean, isAbstract: Boolean, isOverride: Boolean): String {
         val modifiers = mutableListOf<String>()
         if (isAbstract) {
             modifiers.add("abstract")
         }
         if (isInfix) {
             modifiers.add("infix")
+        }
+        if (isOverride) {
+            modifiers.add("override")
         }
         if (!isAbstract && Policy.isInlineFunction()) {
             modifiers.add("inline")
@@ -81,11 +111,10 @@ class FunctionGenerator(val context: Context, val file: KtFile, val containingCl
 
     private fun generateParameter(
         typeParameters: List<KtTypeParameter>,
-        fn: KtNamedFunction,
         index: Int,
         chosenType: KtTypeOrTypeParam = chooseType(typeParameters, true)
-    ) {
-        fn.valueParameterList!!.addParameter(Factory.psiFactory.createParameter("param_$index : ${chosenType.name}"))
+    ): KtParameter {
+        return Factory.psiFactory.createParameter("param_$index : ${chosenType.name}")
     }
 
     private fun chooseType(typeParameters: List<KtTypeParameter>, isValueArgument: Boolean): KtTypeOrTypeParam {
@@ -102,9 +131,5 @@ class FunctionGenerator(val context: Context, val file: KtFile, val containingCl
         } else {
             "f_${context.customClasses.size}_$index"
         }
-    }
-
-    // TODO
-    fun generate(descriptor: FunctionDescriptor) {
     }
 }

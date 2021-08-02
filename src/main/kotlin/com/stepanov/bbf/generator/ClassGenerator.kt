@@ -9,6 +9,7 @@ import com.stepanov.bbf.bugfinder.util.name
 import com.stepanov.bbf.reduktor.parser.PSICreator
 import org.jetbrains.kotlin.cfg.getDeclarationDescriptorIncludingConstructors
 import org.jetbrains.kotlin.descriptors.FunctionDescriptor
+import org.jetbrains.kotlin.descriptors.Modality
 import org.jetbrains.kotlin.descriptors.PropertyDescriptor
 import org.jetbrains.kotlin.psi.KtClass
 import org.jetbrains.kotlin.psi.KtFile
@@ -59,12 +60,10 @@ class ClassGenerator(val context: Context, val file: KtFile) {
         saveClass(cls)
     }
 
-    // TODO: generics
     private fun generateDataclass() {
         val cls = createClass("data class")
         val propertyGenerator = PropertyGenerator(context, cls)
         repeat(Policy.propertyLimit()) {
-            // maybe properties in body?
             propertyGenerator.addConstructorArgument(
                 indexString("property", context, it),
                 Policy.chooseType(cls.typeParameters, Variance.INVARIANT, Variance.OUT_VARIANCE),
@@ -184,8 +183,7 @@ class ClassGenerator(val context: Context, val file: KtFile) {
         if (cls.isAbstract()) {
             return
         }
-        // how to filter for abstract?
-        functions.filter { true }.forEach(functionGenerator::generate)
+        functions.filter { it.modality == Modality.ABSTRACT }.forEach(functionGenerator::generate)
     }
 
     private fun addConstructorParameters(
