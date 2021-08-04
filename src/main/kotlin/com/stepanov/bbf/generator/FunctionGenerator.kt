@@ -129,7 +129,7 @@ class FunctionGenerator(val context: Context, val file: KtFile, val containingCl
         return if (containingClass == null) {
             "f_${context.customFunctions.size}"
         } else {
-            "f_${context.customClasses.size}_$index"
+            indexString("f", context, index)
         }
     }
 }

@@ -3,35 +3,27 @@ package com.stepanov.bbf.generator
 import com.stepanov.bbf.bugfinder.mutator.transformations.Factory
 import com.stepanov.bbf.bugfinder.util.addPsiToBody
 import org.jetbrains.kotlin.psi.KtClass
-import org.jetbrains.kotlin.psi.KtTypeParameter
 import org.jetbrains.kotlin.psi.psiUtil.isAbstract
 import org.jetbrains.kotlin.types.Variance
 
-class PropertyGenerator(val context: Context, val cls: KtClass) {
+class PropertyGenerator(val context: Context, val containingClass: KtClass) {
     fun generate(propertyIndex: Int) {
-        val modifiers = mutableListOf<String>()
-        if (cls.isInterface()) {
-            modifiers.add("public")
-        } else {
-            modifiers.add(Policy.propertyVisibilityTable().toString())
-        }
-        if (cls.isInterface() || (modifiers.first() != "private" && cls.isAbstract() && Policy.isAbstractProperty())) {
-            modifiers.add("abstract")
-        }
-        val type = Policy.chooseType(cls.typeParameters, Variance.INVARIANT, Variance.OUT_VARIANCE)
+        val visibility = if (containingClass.isInterface()) Policy.Visibility.PUBLIC else Policy.propertyVisibility()
+        val isAbstract =
+            containingClass.isInterface() || (visibility != Policy.Visibility.PRIVATE && containingClass.isAbstract() && Policy.isAbstractProperty())
+        val type = Policy.chooseType(containingClass.typeParameters, Variance.INVARIANT, Variance.OUT_VARIANCE)
         val name = indexString("property", context, propertyIndex)
-        val typeParameter = cls.typeParameters.firstOrNull { it.name == type.name }
         // abstract case is tmp until instance generator
-        if (!cls.isInterface() && (!modifiers.contains("abstract") || typeParameter != null || type.hasTypeParameters || Policy.isDefinedInConstructor())) {
-            addConstructorArgument(name, type, typeParameter)
+        if (!containingClass.isInterface() && (!isAbstract || type is KtTypeOrTypeParam.Parameter || Policy.isDefinedInConstructor())) {
+            addConstructorArgument(name, type)
         } else {
-            cls.addPsiToBody(
+            containingClass.addPsiToBody(
                 Factory.psiFactory.createProperty(
-                    modifiers.joinToString(" "),
+                    getModifiers(visibility, isAbstract),
                     name,
                     type.name,
                     Policy.isVar(),
-                    if (modifiers.contains("abstract")) null else Policy.randomConst(
+                    if (isAbstract) null else Policy.randomConst(
                         (type as KtTypeOrTypeParam.Type).type,
                         context
                     )
@@ -43,7 +35,6 @@ class PropertyGenerator(val context: Context, val cls: KtClass) {
     fun addConstructorArgument(
         name: String,
         type: KtTypeOrTypeParam,
-        typeParameter: KtTypeParameter?,
         isOverride: Boolean = false,
         forceVar: Boolean? = null
     ) {
@@ -53,7 +44,8 @@ class PropertyGenerator(val context: Context, val cls: KtClass) {
         }
         val isVal = when {
             forceVar != null -> !forceVar
-            typeParameter?.variance == Variance.OUT_VARIANCE || !Policy.isVar() -> true
+            (type as? KtTypeOrTypeParam.Parameter)?.parameter?.variance == Variance.OUT_VARIANCE -> true
+            !Policy.isVar() -> true
             else -> false
         }
         parameterTokens.addAll(
@@ -64,13 +56,21 @@ class PropertyGenerator(val context: Context, val cls: KtClass) {
                 type.name
             )
         )
-        if (typeParameter == null && !type.hasTypeParameters && type !is KtTypeOrTypeParam.Parameter && Policy.hasDefaultValue()) {
+        if (!type.hasTypeParameters && type !is KtTypeOrTypeParam.Parameter && Policy.hasDefaultValue()) {
             parameterTokens.add("=")
             parameterTokens.add(Policy.randomConst((type as KtTypeOrTypeParam.Type).type, context))
         }
         val parameter = Factory.psiFactory.createParameter(parameterTokens.joinToString(" "))
-        if (!cls.getPrimaryConstructorParameterList()!!.parameters.map { it.name!! }.contains(name)) {
-            cls.getPrimaryConstructorParameterList()!!.addParameter(parameter)
+        if (!containingClass.getPrimaryConstructorParameterList()!!.parameters.map { it.name }.contains(name)) {
+            containingClass.getPrimaryConstructorParameterList()!!.addParameter(parameter)
         }
+    }
+
+    private fun getModifiers(visibility: Policy.Visibility, isAbstract: Boolean): String {
+        val modifiers = mutableListOf(visibility.toString())
+        if (isAbstract) {
+            modifiers.add("abstract")
+        }
+        return modifiers.joinToString(" ")
     }
 }

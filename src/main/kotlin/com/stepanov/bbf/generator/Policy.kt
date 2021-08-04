@@ -91,7 +91,7 @@ object Policy {
         DATA, INTERFACE, ENUM, REGULAR
     }
 
-    val classKindTable = ProbabilityTable(ClassKind.values())
+    val classKind = ProbabilityTable(ClassKind.values())
 
     enum class Visibility {
         PUBLIC, PROTECTED, PRIVATE;
@@ -99,33 +99,27 @@ object Policy {
         override fun toString() = this.name.lowercase()
     }
 
-    val propertyVisibilityTable = ProbabilityTable(Visibility.values())
+    val propertyVisibility = ProbabilityTable(Visibility.values())
 
-    val varianceTable = ProbabilityTable(Variance.values())
+    val variance = ProbabilityTable(Variance.values())
 
     // functions with complex logic
 
     fun chooseType(typeParameterList: List<KtTypeParameter>, vararg allowedVariance: Variance): KtTypeOrTypeParam {
-        val canUseTypeParameter = typeParameterList.any { it.variance in allowedVariance }
-        return when {
-            canUseTypeParameter && useTypeParameter() -> {
-                KtTypeOrTypeParam.Parameter(typeParameterList.filter { it.variance in allowedVariance }
-                        .random())
-            }
-            else -> {
-                KtTypeOrTypeParam.Type(RandomTypeGenerator.generateRandomTypeWithCtx()!!)
-            }
+        val typeParameter = typeParameterList.filter { it.variance in allowedVariance }.randomOrNull()
+        return if (typeParameter != null && useTypeParameter()) {
+            KtTypeOrTypeParam.Parameter(typeParameter)
+        } else {
+            KtTypeOrTypeParam.Type(RandomTypeGenerator.generateRandomTypeWithCtx()!!)
         }
     }
 
 
-    fun resolveTypeParameters(cls: KtClass): Pair<ClassOrBasicType, List<KotlinType>> {
-        val typeParameters =
-            cls.typeParameterList?.parameters?.mapNotNull { randomTypeParameterValue(it) }
-        val tmp = typeParameters?.joinToString(", ", "<", ">").orEmpty()
+    fun resolveTypeParameters(cls: KtClass): Pair<String, List<KotlinType>> {
+        val typeParameters = cls.typeParameterList?.parameters?.mapNotNull { randomTypeParameterValue(it) }
         return Pair(
-            ClassOrBasicType(cls.name!! + tmp, cls),
-            typeParameters ?: emptyList()
+            cls.name!! + typeParameters?.joinToString(", ", "<", ">").orEmpty(),
+            typeParameters.orEmpty()
         )
     }
 
@@ -147,8 +141,9 @@ object Policy {
             return emptyList()
         }
         val result = mutableListOf<KtClass>()
-        if (inheritClass() && context.customClasses.any { it.isInheritableClass() }) {
-            result.add(context.customClasses.filter { it.isInheritableClass() }.random())
+        val inheritedClass = context.customClasses.filter { it.isInheritableClass() }.randomOrNull()
+        if (inheritClass() && inheritedClass != null) {
+            result.add(inheritedClass)
         }
         result.addAll(context.customClasses.filter { it.isInterface() }
                 .shuffled()

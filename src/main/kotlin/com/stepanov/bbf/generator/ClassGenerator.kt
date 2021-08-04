@@ -28,7 +28,7 @@ class ClassGenerator(val context: Context, val file: KtFile) {
         val classLimit = Policy.classLimit()
         while (classLimit > context.customClasses.size) {
             RandomTypeGenerator.setFileAndContext(file, PSICreator.analyze(file)!!)
-            when (Policy.classKindTable()) {
+            when (Policy.classKind()) {
                 Policy.ClassKind.DATA -> generateDataclass()
                 Policy.ClassKind.ENUM -> generateEnum()
                 Policy.ClassKind.INTERFACE -> generateInterface()
@@ -66,8 +66,7 @@ class ClassGenerator(val context: Context, val file: KtFile) {
         repeat(Policy.propertyLimit()) {
             propertyGenerator.addConstructorArgument(
                 indexString("property", context, it),
-                Policy.chooseType(cls.typeParameters, Variance.INVARIANT, Variance.OUT_VARIANCE),
-                null
+                Policy.chooseType(cls.typeParameters, Variance.INVARIANT, Variance.OUT_VARIANCE)
             )
         }
     }
@@ -82,7 +81,7 @@ class ClassGenerator(val context: Context, val file: KtFile) {
 
         val typeParameters = (0 until Policy.typeParameterLimit()).map {
             val paramName = indexString("T", context, it)
-            val parameter = Factory.psiFactory.createTypeParameter("${Policy.varianceTable().label} $paramName")
+            val parameter = Factory.psiFactory.createTypeParameter("${Policy.variance().label} $paramName")
             if (Policy.useBound()) {
                 parameter.extendsBound =
                     Factory.psiFactory.createType(RandomTypeGenerator.generateRandomTypeWithCtx()!!.toString())
@@ -93,7 +92,7 @@ class ClassGenerator(val context: Context, val file: KtFile) {
         val qualifiedInheritedClasses =
             inheritedClasses.map { klass ->
                 val (resolved, chosenParameters) = klass.getFullyQualifiedName(false)
-                Triple(resolved, chosenParameters, klass)
+                InheritedClass(resolved, chosenParameters, klass)
             }
         var cls = createClass(
             "class",
@@ -128,13 +127,13 @@ class ClassGenerator(val context: Context, val file: KtFile) {
         for (cls in file.getAllPSIChildrenOfType<KtClass>()
                 .filter { it.name?.startsWith(CLASS_PREFIX) ?: false }
                 .sortedBy { it.name!!.substring(CLASS_PREFIX.length).toInt() }) {
+            if (cls.name!! !in propertiesToAdd) {
+                continue
+            }
             val ctx = PSICreator.analyze(file)!! // re-analyzing each time since signatures may change
             RandomTypeGenerator.setFileAndContext(file, ctx)
             val propertyGenerator = PropertyGenerator(context, cls)
             val functionGenerator = FunctionGenerator(context, file, cls)
-            if (cls.name!! !in propertiesToAdd) {
-                continue
-            }
             val (classIndex, inheritedClasses) = propertiesToAdd[cls.name!!]!!
             for ((resolvedName, typeParameters, inheritedClass) in inheritedClasses) {
                 val inheritedClassDescriptor =
@@ -168,7 +167,6 @@ class ClassGenerator(val context: Context, val file: KtFile) {
             propertyGenerator.addConstructorArgument(
                 propertyDescriptor.name.asString(),
                 KtTypeOrTypeParam.Type(propertyDescriptor.type),
-                cls.typeParameters.firstOrNull { it.name == propertyDescriptor.type.name!! },
                 true,
                 propertyDescriptor.isVar
             )
@@ -217,8 +215,7 @@ class ClassGenerator(val context: Context, val file: KtFile) {
             }
             propertyGenerator.addConstructorArgument(
                 name,
-                KtTypeOrTypeParam.Type(type),
-                null // why?
+                KtTypeOrTypeParam.Type(type)
             )
             val argList = cls.superTypeListEntries.first { it.typeReference!!.text == resolvedName }.children[1]
             (argList as KtValueArgumentList).addArgument(Factory.psiFactory.createArgument(name))
@@ -228,7 +225,7 @@ class ClassGenerator(val context: Context, val file: KtFile) {
     private fun getClassModifiers(
         isInner: Boolean,
         containingClass: KtClass?
-    ): Pair<MutableList<String>, Boolean> {
+    ): Pair<List<String>, Boolean> {
         val classModifiers = mutableListOf<String>()
         // intentional shadowing
         val isInner = isInner || (containingClass != null && Policy.isInner())
@@ -247,7 +244,7 @@ class ClassGenerator(val context: Context, val file: KtFile) {
         keyword: String,
         classModifiers: List<String> = emptyList(),
         typeParameters: List<KtTypeParameter> = emptyList(),
-        inheritedClasses: List<Triple<String, List<KotlinType>, KtClass>> = emptyList(),
+        inheritedClasses: List<InheritedClass> = emptyList(),
         withPrimaryConstructor: Boolean = true
     ): KtClass {
         val typeParameterBrackets = if (typeParameters.isEmpty()) "" else "<>"
@@ -256,7 +253,7 @@ class ClassGenerator(val context: Context, val file: KtFile) {
                 ""
             } else {
                 " : " + inheritedClasses.joinToString(", ") {
-                    it.first + if (it.third.getPrimaryConstructorParameterList()?.parameters == null) "" else "()"
+                    it.resolvedName + if (it.cls.getPrimaryConstructorParameterList()?.parameters == null) "" else "()"
                 }
             }
         val primaryConstructor = if (withPrimaryConstructor) "()" else ""
@@ -278,7 +275,7 @@ class ClassGenerator(val context: Context, val file: KtFile) {
     }
 
     private val propertiesToAdd =
-        mutableMapOf<String, Pair<Int, List<Triple<String, List<KotlinType>, KtClass>>>>()
+        mutableMapOf<String, Pair<Int, List<InheritedClass>>>()
 
     companion object {
         private const val CLASS_PREFIX = "Class"

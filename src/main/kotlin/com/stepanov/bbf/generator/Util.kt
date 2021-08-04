@@ -2,6 +2,7 @@ package com.stepanov.bbf.generator
 
 import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.psi.KtClass
+import org.jetbrains.kotlin.psi.KtClassOrObject
 import org.jetbrains.kotlin.psi.psiUtil.containingClass
 import org.jetbrains.kotlin.psi.psiUtil.isAbstract
 import org.jetbrains.kotlin.types.KotlinType
@@ -26,15 +27,17 @@ fun KtClass.getFullyQualifiedName(
             ).first
         } + "."
     } + if (withTypeParameters) {
-        resolvedThis.name
+        resolvedThis
     } else {
         name!!
     }
     return Pair(resolvedTotal, chosenTypeParameters)
 }
 
+fun KtClassOrObject.isOpen() = hasModifier(KtTokens.OPEN_KEYWORD)
+
 fun KtClass.isInheritableClass(): Boolean {
-    return !isInterface() && !isInner() && (isSealed() || isInterface() || isAbstract() || hasModifier(KtTokens.OPEN_KEYWORD))
+    return !isInterface() && !isInner() && (isSealed() || isInterface() || isAbstract() || isOpen())
 }
 
 fun indexString(prefix: String, context: Context, vararg index: Int): String {
