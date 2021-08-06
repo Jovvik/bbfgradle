@@ -48,33 +48,17 @@ class FunctionGenerator(val context: Context, val file: KtFile, val containingCl
         returnType: KtTypeOrTypeParam? = chooseType(typeParameters, false),
     ) {
         val fn = createFunction(isInfix, isAbstract, isOverride, typeParameters, name, returnType)
-        generateBody(fn)
         typeParameters.forEach { fn.typeParameterList!!.addParameter(it) }
         valueParameters.forEach { fn.valueParameterList!!.addParameter(it) }
+        if (fn.hasBody()) {
+            ExpressionGenerator(fn.bodyExpression!!).generate()
+        }
         if (containingClass != null) {
             containingClass.addPsiToBody(fn)
         } else {
             file.addAtTheEnd(fn)
             context.customFunctions.add(fn)
         }
-    }
-
-    // TODO: expressions
-    private fun generateBody(fn: KtNamedFunction) {
-        if (!fn.hasBody()) {
-            return
-        }
-        val bodyExpression = fn.bodyExpression!!
-        val todo = Factory.psiFactory.createExpression("TODO()")
-        addToBody(bodyExpression, todo)
-    }
-
-    private fun addToBody(
-        bodyExpression: KtExpression,
-        expression: KtExpression
-    ) {
-        bodyExpression.addBefore(expression, bodyExpression.lastChild)
-        bodyExpression.addBefore(Factory.psiFactory.createWhiteSpace("\n"), bodyExpression.lastChild)
     }
 
     private fun createFunction(
