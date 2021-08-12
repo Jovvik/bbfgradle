@@ -8,7 +8,11 @@ import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi.psiUtil.isAbstract
 import org.jetbrains.kotlin.types.Variance
 
-class FunctionGenerator(val context: Context, val file: KtFile, val containingClass: KtClass? = null) {
+class FunctionGenerator(
+    private val context: Context,
+    private val file: KtFile,
+    private val containingClass: KtClass? = null
+) {
     fun generate(index: Int) {
         val typeParameters = (0 until Policy.typeParameterLimit()).map {
             Factory.psiFactory.createTypeParameter("T_$it")
@@ -28,7 +32,7 @@ class FunctionGenerator(val context: Context, val file: KtFile, val containingCl
         )
     }
 
-    fun generate(descriptor: FunctionDescriptor) = generate(
+    fun generateOverride(descriptor: FunctionDescriptor) = generate(
         descriptor.name.asString(),
         descriptor.typeParameters.map { Factory.psiFactory.createTypeParameter(it.name.asString()) },
         descriptor.valueParameters.map { Factory.psiFactory.createParameter("${it.name} : ${it.type}") },
@@ -51,7 +55,12 @@ class FunctionGenerator(val context: Context, val file: KtFile, val containingCl
         typeParameters.forEach { fn.typeParameterList!!.addParameter(it) }
         valueParameters.forEach { fn.valueParameterList!!.addParameter(it) }
         if (fn.hasBody()) {
-            ExpressionGenerator(fn.bodyExpression!!).generate()
+            context.visibleVariables = valueParameters.toMutableList()
+            val expressionGenerator = ExpressionGenerator(fn.bodyExpression!!, context)
+            repeat(Policy.arithmeticExpressionLimit()) {
+                expressionGenerator.generateArithmetic(it)
+            }
+            expressionGenerator.generateTodo()
         }
         if (containingClass != null) {
             containingClass.addPsiToBody(fn)
