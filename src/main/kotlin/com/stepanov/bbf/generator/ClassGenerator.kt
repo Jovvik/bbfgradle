@@ -11,10 +11,7 @@ import org.jetbrains.kotlin.cfg.getDeclarationDescriptorIncludingConstructors
 import org.jetbrains.kotlin.descriptors.FunctionDescriptor
 import org.jetbrains.kotlin.descriptors.Modality
 import org.jetbrains.kotlin.descriptors.PropertyDescriptor
-import org.jetbrains.kotlin.psi.KtClass
-import org.jetbrains.kotlin.psi.KtFile
-import org.jetbrains.kotlin.psi.KtTypeParameter
-import org.jetbrains.kotlin.psi.KtValueArgumentList
+import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi.psiUtil.isAbstract
 import org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor
 import org.jetbrains.kotlin.resolve.scopes.getDescriptorsFiltered
@@ -36,6 +33,7 @@ class ClassGenerator(val context: Context, val file: KtFile) {
             }
         }
         addUnimplemented()
+        RandomTypeGenerator.setFileAndContext(file, PSICreator.analyze(file)!!)
         val functionGenerator = FunctionGenerator(context, file)
         repeat(Policy.freeFunctionLimit()) {
             functionGenerator.generate(it)
@@ -83,8 +81,11 @@ class ClassGenerator(val context: Context, val file: KtFile) {
             val paramName = indexString("T", context, it)
             val parameter = Factory.psiFactory.createTypeParameter("${Policy.variance().label} $paramName")
             if (Policy.useBound()) {
-                parameter.extendsBound =
-                    Factory.psiFactory.createType(RandomTypeGenerator.generateRandomTypeWithCtx()!!.toString())
+                // Upper bound of a type parameter cannot be an array
+                while (parameter.extendsBound?.text?.startsWith("Array<") != false) {
+                    parameter.extendsBound =
+                        Factory.psiFactory.createType(RandomTypeGenerator.generateRandomTypeWithCtx()!!.toString())
+                }
             }
             parameter
         }
@@ -181,7 +182,13 @@ class ClassGenerator(val context: Context, val file: KtFile) {
         if (cls.isAbstract()) {
             return
         }
-        functions.filter { it.modality == Modality.ABSTRACT }.forEach(functionGenerator::generate)
+        functions.filter { it.modality == Modality.ABSTRACT }
+                .filter { fn ->
+                    !cls.children.filterIsInstance<KtNamedFunction>()
+                            .map { it.name!! }
+                            .contains(fn.name.asString())
+                }
+                .forEach(functionGenerator::generateOverride)
     }
 
     private fun addConstructorParameters(

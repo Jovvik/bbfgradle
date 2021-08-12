@@ -5,13 +5,11 @@ import org.jetbrains.kotlin.types.KotlinType
 
 sealed class KtTypeOrTypeParam {
     class Type(val type: KotlinType) : KtTypeOrTypeParam() {
-        override val name: String
-            get() = type.toString()
+        override val name = type.toString()
     }
 
     class Parameter(val parameter: KtTypeParameter) : KtTypeOrTypeParam() {
-        override val name: String
-            get() = parameter.name!!
+        override val name = parameter.name!!
     }
 
     val hasTypeParameters: Boolean = true

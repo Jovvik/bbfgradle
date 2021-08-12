@@ -96,7 +96,22 @@ class FunctionGenerator(
         if (isOverride) {
             modifiers.add("override")
         }
-        if (!isAbstract && Policy.isInlineFunction()) {
+        /*
+        The last case is due to this example:
+        ```
+        abstract class A {
+            abstract fun f(): Int
+        }
+        open class B : A() {
+            override inline fun f(): Int = TODO()
+        }
+        ```
+        `open` matters.
+         */
+        if (!isAbstract
+            && Policy.isInlineFunction()
+            && !(containingClass?.isOpen() == true || containingClass?.isSealed() == true && isOverride)
+        ) {
             modifiers.add("inline")
         }
         return modifiers.joinToString(" ")

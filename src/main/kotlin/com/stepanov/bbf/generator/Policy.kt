@@ -1,12 +1,14 @@
 package com.stepanov.bbf.generator
 
 import com.stepanov.bbf.bugfinder.generator.targetsgenerators.typeGenerators.RandomTypeGenerator
+import com.stepanov.bbf.generator.arithmetic.*
 import org.jetbrains.kotlin.psi.KtClass
 import org.jetbrains.kotlin.psi.KtTypeParameter
 import org.jetbrains.kotlin.types.KotlinType
 import org.jetbrains.kotlin.types.Variance
 import java.lang.Integer.min
 import kotlin.random.Random
+import kotlin.reflect.full.primaryConstructor
 
 object Policy {
 
@@ -26,10 +28,13 @@ object Policy {
 
     // soft limits
 
-    fun classLimit() = 15
+    fun arithmeticExpressionLimit() = uniformDistribution(1, 4)
+
+    fun classLimit() = 10
 
     fun enumValueLimit() = uniformDistribution(1, 10)
 
+    // tmp
     fun freeFunctionLimit() = uniformDistribution(1, 10)
 
     fun functionParameterLimit() = uniformDistribution(0, 3)
@@ -102,6 +107,61 @@ object Policy {
     val propertyVisibility = ProbabilityTable(Visibility.values())
 
     val variance = ProbabilityTable(Variance.values())
+
+    object Arithmetic {
+        private enum class ConstType {
+            INT, LONG, FLOAT, DOUBLE
+        }
+
+        private val constType = ProbabilityTable(ConstType.values())
+
+        private enum class ConstKind {
+            SMALL, LARGE_POSITIVE, LARGE_NEGATIVE
+        }
+
+        private val constKind = ProbabilityTable(ConstKind.values())
+
+        fun const(): String {
+            val kind = constKind()
+            return when (constType()) {
+                ConstType.INT -> when (kind) {
+                    ConstKind.SMALL -> Random.nextInt(-5, 6)
+                    ConstKind.LARGE_POSITIVE -> Random.nextInt(Int.MAX_VALUE - 10, Int.MAX_VALUE) + 1
+                    ConstKind.LARGE_NEGATIVE -> Random.nextInt(Int.MIN_VALUE, Int.MIN_VALUE + 10)
+                }
+                ConstType.LONG -> when (kind) {
+                    ConstKind.SMALL -> Random.nextLong(-5, 6)
+                    ConstKind.LARGE_POSITIVE -> Random.nextLong(Long.MAX_VALUE - 10, Long.MAX_VALUE) + 1
+                    ConstKind.LARGE_NEGATIVE -> Random.nextLong(Long.MIN_VALUE, Long.MIN_VALUE + 10) + 1
+                }.toString() + "L"
+                ConstType.FLOAT -> when (kind) {
+                    ConstKind.SMALL -> Random.nextFloat() - 0.5f
+                    ConstKind.LARGE_POSITIVE -> Random.nextFloat() * Float.MAX_VALUE * 0.5 + Float.MAX_VALUE * 0.5
+                    ConstKind.LARGE_NEGATIVE -> Random.nextFloat() * Float.MIN_VALUE * 0.5 + Float.MIN_VALUE * 0.5
+                }.toString() + "f"
+                ConstType.DOUBLE -> when (kind) {
+                    ConstKind.SMALL -> Random.nextDouble() - 0.5f
+                    ConstKind.LARGE_POSITIVE -> Random.nextDouble() * Double.MAX_VALUE * 0.5 + Double.MAX_VALUE * 0.5
+                    ConstKind.LARGE_NEGATIVE -> Random.nextDouble() * Double.MIN_VALUE * 0.5 + Double.MIN_VALUE * 0.5
+                }
+            }.toString()
+        }
+
+        private val nodeTable =
+            ProbabilityTable(BinaryOperator::class.sealedSubclasses + UnaryOperator::class.sealedSubclasses)
+
+        fun node(context: Context, depth: Int = 0): Node {
+            return if (Random.nextDouble() < 1 / (depth.toDouble() + 2) || depth >= 5) {
+                if (Random.nextDouble() < 0.5 && context.visibleNumericVariables.isNotEmpty()) {
+                    Variable(context, depth)
+                } else {
+                    Const(context, depth)
+                }
+            } else {
+                nodeTable().primaryConstructor!!.call(context, depth)
+            }
+        }
+    }
 
     // functions with complex logic
 
