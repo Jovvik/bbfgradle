@@ -1,6 +1,8 @@
 package com.stepanov.bbf.generator
 
 import com.stepanov.bbf.bugfinder.generator.targetsgenerators.typeGenerators.RandomTypeGenerator
+import com.stepanov.bbf.generator.Policy.Arithmetic.ConstKind.*
+import com.stepanov.bbf.generator.Policy.Arithmetic.ConstType.*
 import com.stepanov.bbf.generator.arithmetic.*
 import org.jetbrains.kotlin.psi.KtClass
 import org.jetbrains.kotlin.psi.KtTypeParameter
@@ -122,29 +124,38 @@ object Policy {
         private val constKind = ProbabilityTable(ConstKind.values())
 
         fun const(): String {
+            fun maxValue(type: ConstType): Long = when (type) {
+                INT -> Int.MAX_VALUE.toLong()
+                LONG -> Long.MAX_VALUE
+                else -> throw IllegalArgumentException()
+            }
+
+            fun minValue(type: ConstType): Long = when (type) {
+                INT -> Int.MIN_VALUE.toLong()
+                LONG -> Long.MIN_VALUE
+                else -> throw IllegalArgumentException()
+            }
+
             val kind = constKind()
-            return when (constType()) {
-                ConstType.INT -> when (kind) {
-                    ConstKind.SMALL -> Random.nextInt(-5, 6)
-                    ConstKind.LARGE_POSITIVE -> Random.nextInt(Int.MAX_VALUE - 10, Int.MAX_VALUE) + 1
-                    ConstKind.LARGE_NEGATIVE -> Random.nextInt(Int.MIN_VALUE, Int.MIN_VALUE + 10)
+            val type = constType()
+            return when (kind) {
+                SMALL -> when (type) {
+                    INT, LONG -> Random.nextLong(-5, 6)
+                    FLOAT, DOUBLE -> Random.nextDouble() - 0.5
                 }
-                ConstType.LONG -> when (kind) {
-                    ConstKind.SMALL -> Random.nextLong(-5, 6)
-                    ConstKind.LARGE_POSITIVE -> Random.nextLong(Long.MAX_VALUE - 10, Long.MAX_VALUE) + 1
-                    ConstKind.LARGE_NEGATIVE -> Random.nextLong(Long.MIN_VALUE, Long.MIN_VALUE + 10) + 1
-                }.toString() + "L"
-                ConstType.FLOAT -> when (kind) {
-                    ConstKind.SMALL -> Random.nextFloat() - 0.5f
-                    ConstKind.LARGE_POSITIVE -> Random.nextFloat() * Float.MAX_VALUE * 0.5 + Float.MAX_VALUE * 0.5
-                    ConstKind.LARGE_NEGATIVE -> Random.nextFloat() * Float.MIN_VALUE * 0.5 + Float.MIN_VALUE * 0.5
-                }.toString() + "f"
-                ConstType.DOUBLE -> when (kind) {
-                    ConstKind.SMALL -> Random.nextDouble() - 0.5f
-                    ConstKind.LARGE_POSITIVE -> Random.nextDouble() * Double.MAX_VALUE * 0.5 + Double.MAX_VALUE * 0.5
-                    ConstKind.LARGE_NEGATIVE -> Random.nextDouble() * Double.MIN_VALUE * 0.5 + Double.MIN_VALUE * 0.5
+                LARGE_POSITIVE -> when (type) {
+                    INT, LONG -> Random.nextLong(maxValue(type) - 10, maxValue(type)) + 1
+                    FLOAT, DOUBLE -> (Random.nextDouble() + 1) * maxValue(type) * 0.5
                 }
-            }.toString()
+                LARGE_NEGATIVE -> when (type) {
+                    INT, LONG -> Random.nextLong(minValue(type), minValue(type) + 10)
+                    FLOAT, DOUBLE -> (Random.nextDouble() + 1) * minValue(type) * 0.5
+                }
+            }.toString() + when (type) {
+                LONG -> "L"
+                FLOAT -> "f"
+                else -> ""
+            }
         }
 
         private val nodeTable =
