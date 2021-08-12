@@ -111,8 +111,11 @@ object Policy {
     val variance = ProbabilityTable(Variance.values())
 
     object Arithmetic {
-        private enum class ConstType {
-            INT, LONG, FLOAT, DOUBLE
+        private enum class ConstType(val min: Number, val max: Number) {
+            INT(Int.MIN_VALUE, Int.MAX_VALUE),
+            LONG(Long.MIN_VALUE, Long.MAX_VALUE),
+            FLOAT(Float.MIN_VALUE, Float.MAX_VALUE),
+            DOUBLE(Double.MIN_VALUE, Double.MAX_VALUE)
         }
 
         private val constType = ProbabilityTable(ConstType.values())
@@ -124,18 +127,6 @@ object Policy {
         private val constKind = ProbabilityTable(ConstKind.values())
 
         fun const(): String {
-            fun maxValue(type: ConstType): Long = when (type) {
-                INT -> Int.MAX_VALUE.toLong()
-                LONG -> Long.MAX_VALUE
-                else -> throw IllegalArgumentException()
-            }
-
-            fun minValue(type: ConstType): Long = when (type) {
-                INT -> Int.MIN_VALUE.toLong()
-                LONG -> Long.MIN_VALUE
-                else -> throw IllegalArgumentException()
-            }
-
             val kind = constKind()
             val type = constType()
             return when (kind) {
@@ -144,12 +135,12 @@ object Policy {
                     FLOAT, DOUBLE -> Random.nextDouble() - 0.5
                 }
                 LARGE_POSITIVE -> when (type) {
-                    INT, LONG -> Random.nextLong(maxValue(type) - 10, maxValue(type)) + 1
-                    FLOAT, DOUBLE -> (Random.nextDouble() + 1) * maxValue(type) * 0.5
+                    INT, LONG -> Random.nextLong(type.max.toLong() - 10, type.max.toLong()) + 1
+                    FLOAT, DOUBLE -> (Random.nextDouble() + 1) * 0.5 * type.max.toDouble()
                 }
                 LARGE_NEGATIVE -> when (type) {
-                    INT, LONG -> Random.nextLong(minValue(type), minValue(type) + 10)
-                    FLOAT, DOUBLE -> (Random.nextDouble() + 1) * minValue(type) * 0.5
+                    INT, LONG -> Random.nextLong(type.min.toLong(), type.min.toLong() + 10)
+                    FLOAT, DOUBLE -> (Random.nextDouble() + 1) * 0.5 * type.max.toDouble()
                 }
             }.toString() + when (type) {
                 LONG -> "L"
