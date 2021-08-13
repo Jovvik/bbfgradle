@@ -1,6 +1,7 @@
 package com.stepanov.bbf.generator
 
 import com.stepanov.bbf.bugfinder.generator.targetsgenerators.typeGenerators.RandomTypeGenerator
+import com.stepanov.bbf.bugfinder.util.name
 import com.stepanov.bbf.generator.Policy.Arithmetic.ConstKind.*
 import com.stepanov.bbf.generator.Policy.Arithmetic.ConstType.*
 import com.stepanov.bbf.generator.arithmetic.*
@@ -190,9 +191,16 @@ object Policy {
     }
 
     private fun randomTypeParameterValue(typeParameter: KtTypeParameter): KotlinType? {
-        return RandomTypeGenerator.generateRandomTypeWithCtx(typeParameter.extendsBound?.text?.let {
+        val bound = typeParameter.extendsBound?.text?.let {
             RandomTypeGenerator.generateType(it)
-        })
+        }
+        return RandomTypeGenerator.generateRandomTypeWithCtx(bound)!!.let {
+            if (it.name?.contains("KMutableProperty") != false) {
+                randomTypeParameterValue(typeParameter)
+            } else {
+                it
+            }
+        }
     }
 
     // TODO: inheritance conflicts?
