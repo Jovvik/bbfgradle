@@ -127,20 +127,24 @@ object Policy {
 
         private val constKind = ProbabilityTable(ConstKind.values())
 
+        private const val largeConstantSpread = 10
+
+        private const val smallConstantSpread = 5L
+
         fun const(): String {
             val kind = constKind()
             val type = constType()
             return when (kind) {
                 SMALL -> when (type) {
-                    INT, LONG -> Random.nextLong(-5, 6)
+                    INT, LONG -> Random.nextLong(-smallConstantSpread, smallConstantSpread + 1)
                     FLOAT, DOUBLE -> Random.nextDouble() - 0.5
                 }
                 LARGE_POSITIVE -> when (type) {
-                    INT, LONG -> Random.nextLong(type.max.toLong() - 10, type.max.toLong()) + 1
+                    INT, LONG -> Random.nextLong(type.max.toLong() - largeConstantSpread, type.max.toLong()) + 1
                     FLOAT, DOUBLE -> (Random.nextDouble() + 1) * 0.5 * type.max.toDouble()
                 }
                 LARGE_NEGATIVE -> when (type) {
-                    INT, LONG -> Random.nextLong(type.min.toLong(), type.min.toLong() + 10)
+                    INT, LONG -> Random.nextLong(type.min.toLong(), type.min.toLong() + largeConstantSpread) + 1
                     FLOAT, DOUBLE -> (Random.nextDouble() + 1) * 0.5 * type.max.toDouble()
                 }
             }.toString() + when (type) {
@@ -150,12 +154,16 @@ object Policy {
             }
         }
 
+        private const val depthLimit = 5
+
+        private fun isVariable() = bernoulliDistribution(0.5)
+
         private val nodeTable =
             ProbabilityTable(BinaryOperator::class.sealedSubclasses + UnaryOperator::class.sealedSubclasses)
 
         fun node(context: Context, depth: Int = 0): Node {
-            return if (Random.nextDouble() < 1 / (depth.toDouble() + 2) || depth >= 5) {
-                if (Random.nextDouble() < 0.5 && context.visibleNumericVariables.isNotEmpty()) {
+            return if (Random.nextDouble() < 1 / (depth.toDouble() + 2) || depth >= depthLimit) {
+                if (isVariable() && context.visibleNumericVariables.isNotEmpty()) {
                     Variable(context, depth)
                 } else {
                     Const(context, depth)
