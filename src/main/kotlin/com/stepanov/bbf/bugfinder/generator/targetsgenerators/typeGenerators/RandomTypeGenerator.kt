@@ -47,6 +47,7 @@ object RandomTypeGenerator {
     }
 
     fun generateRandomTypeWithCtx(upperBounds: KotlinType? = null, depth: Int = 0): KotlinType? {
+        if (depth > MAX_DEPTH) return null
         val resRandomType: KotlinType?
         when {
             upperBounds != null && !upperBounds.isAnyOrNullableAny() -> {
@@ -153,24 +154,25 @@ object RandomTypeGenerator {
             //require(generatedType != null) { println(it.text + "\n" + randomClass.text) }
             typeParamToType[it.name!!] = generatedType
         }
-//        val finalTypeParams =
-//            randomClass.typeParameters.map { typeParamToType[it.name]!! }
-        val klassNames = file.getAllPSIChildrenOfType<KtClassOrObject>().map { it.name }.filterNotNull()
-        val klassList =
-            randomClass.typeParameters
-                .map { typeParamToType[it.name]?.getNameWithoutError() ?: it.text }
-                //.map { typeParamToType.getOrDefault(it.name, it.name) }
-                .joinToString()
-                .plus(",$name")
-                .split(Regex("""[,<>]"""))
-                .map { it.trim() }
-                .filter { it in klassNames }
-        val finalTypeParams = if (klassList.size == klassList.toSet().size)
-            randomClass.typeParameters.map { typeParamToType[it.name]?.getNameWithoutError() ?: it.text }
-        else
-            randomClass.typeParameters.map { generateType(generatePrimitive())!!.getNameWithoutError() }
+        val finalTypeParams = randomClass.typeParameters.map { typeParamToType[it.name]?.toString() ?: it.text }
         val strTypeParams =
             if (finalTypeParams.isEmpty()) "" else finalTypeParams.joinToString(prefix = "<", postfix = ">")
+//        val finalTypeParams =
+//            randomClass.typeParameters.map { typeParamToType[it.name]!! }
+//        val klassNames = file.getAllPSIChildrenOfType<KtClassOrObject>().map { it.name }.filterNotNull()
+//        val klassList =
+//            randomClass.typeParameters
+//                .map { typeParamToType[it.name]?.getNameWithoutError() ?: it.text }
+//                //.map { typeParamToType.getOrDefault(it.name, it.name) }
+//                .joinToString()
+//                .plus(",$name")
+//                .split(Regex("""[,<>]"""))
+//                .map { it.trim() }
+//                .filter { it in klassNames }
+//        val finalTypeParams = if (klassList.size == klassList.toSet().size)
+//            randomClass.typeParameters.map { typeParamToType[it.name]?.getNameWithoutError() ?: it.text }
+//        else
+//            randomClass.typeParameters.map { generateType(generatePrimitive())!!.getNameWithoutError() }
 //        //Helps for nested, but not inner classes
 //        val prefix =
 //            randomClass.parents
@@ -286,6 +288,7 @@ object RandomTypeGenerator {
         //return UsageSamplesGeneratorWithStLibrary.generateOpenClassType(onlyInterfaces)
     }
 
+    private val MAX_DEPTH = 10
 
     fun generatePrimitive(): String = primitives.random()
 

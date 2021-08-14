@@ -75,6 +75,9 @@ object StdLibraryGenerator {
         return res.filterDuplicatesBy { it.joinToString { it.name.asString() } }
     }
 
+    fun findPackagesForTypes(types: List<String>): List<PackageFragmentDescriptor> =
+        types.mapNotNull { findPackageForType(it) }
+
     fun findPackageForType(type: String): PackageFragmentDescriptor? {
         val klassDescriptor = klasses.find { it.name.asString() == type.substringBefore('<').trim() }
         return klassDescriptor?.containingDeclaration?.findPackage()

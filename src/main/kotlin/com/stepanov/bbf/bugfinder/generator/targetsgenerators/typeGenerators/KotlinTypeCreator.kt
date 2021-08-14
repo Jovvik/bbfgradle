@@ -2,10 +2,7 @@ package com.stepanov.bbf.bugfinder.generator.targetsgenerators.typeGenerators
 
 import com.stepanov.bbf.bugfinder.mutator.transformations.Factory
 import com.stepanov.bbf.bugfinder.mutator.transformations.tce.StdLibraryGenerator
-import com.stepanov.bbf.bugfinder.util.addImport
-import com.stepanov.bbf.bugfinder.util.getAllPSIChildrenOfType
-import com.stepanov.bbf.bugfinder.util.getNameWithoutError
-import com.stepanov.bbf.bugfinder.util.isErrorType
+import com.stepanov.bbf.bugfinder.util.*
 import com.stepanov.bbf.reduktor.parser.PSICreator
 import com.stepanov.bbf.reduktor.util.getAllChildren
 import org.jetbrains.kotlin.name.FqName
@@ -110,14 +107,29 @@ object KotlinTypeCreator {
         val func = "fun $typeParams abcq(a: $n$typeParamsWithoutBounds){}"
         val prop = "val abcq1: $n$typeParamsWithoutBounds = TODO()"
         val newFile = Factory.psiFactory.createFile("$prefix\n\n$prop\n\n$func\n\n${fileCopy.text}")
-        //Search for package of type
-        StdLibraryGenerator.findPackageForType(vtype)?.let { pack ->
-            val import = Factory.psiFactory.createImportDirective(ImportPath(FqName(pack.fqName.toUnsafe()), true))
-            newFile.addImport(import)
-        }
-        val ctx = PSICreator.analyze(newFile) ?: return null
         val psiFunc = newFile.getAllPSIChildrenOfType<KtNamedFunction>().firstOrNull() ?: return null
         val psiProp = newFile.getAllPSIChildrenOfType<KtProperty>().firstOrNull() ?: return null
+        val funTypeReference =
+            psiFunc.valueParameters.firstOrNull()?.typeReference
+                ?.let { listOf(it) + it.getAllPSIChildrenOfType<KtReferenceExpression>() }
+                ?: listOf()
+        val propTypeReference = psiProp.typeReference
+            ?.let { listOf(it) + it.getAllPSIChildrenOfType<KtReferenceExpression>() }
+            ?: listOf()
+        val allTypeReferences =
+            (funTypeReference + propTypeReference)
+                .map { it.text }
+                .toSet()
+                .toList()
+        //Search for package of type
+        StdLibraryGenerator.findPackagesForTypes(allTypeReferences)
+            .filter { "$it".contains("java") || "$it".contains("kotlin") }
+            .filterDuplicatesBy { "$it" }
+            .forEach { pack ->
+                val import = Factory.psiFactory.createImportDirective(ImportPath(FqName(pack.fqName.toUnsafe()), true))
+                newFile.addImport(import)
+            }
+        val ctx = PSICreator.analyze(newFile) ?: return null
         val propType = psiProp.typeReference?.getAbbreviatedTypeOrType(ctx)
         if (propType != null && !propType.isErrorType()) return propType
         return psiFunc.valueParameters.firstOrNull()?.typeReference?.getAbbreviatedTypeOrType(ctx)
