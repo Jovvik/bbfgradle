@@ -6,4 +6,5 @@ class Variable(context: Context, depth: Int) : Node(context, depth + 1) {
     val value = context.visibleNumericVariables.random()
 
     override fun toString() = value.name!!
+    override val type = Type.values().first { it.toString() == value.typeReference?.text }
 }

@@ -2,9 +2,10 @@ package com.stepanov.bbf.generator
 
 import com.stepanov.bbf.bugfinder.generator.targetsgenerators.typeGenerators.RandomTypeGenerator
 import com.stepanov.bbf.bugfinder.util.name
-import com.stepanov.bbf.generator.Policy.Arithmetic.ConstKind.*
-import com.stepanov.bbf.generator.Policy.Arithmetic.ConstType.*
+import com.stepanov.bbf.generator.Policy.Arithmetic.ConstKind.LARGE_POSITIVE
+import com.stepanov.bbf.generator.Policy.Arithmetic.ConstKind.SMALL
 import com.stepanov.bbf.generator.arithmetic.*
+import com.stepanov.bbf.generator.arithmetic.Type.*
 import org.jetbrains.kotlin.psi.KtClass
 import org.jetbrains.kotlin.psi.KtTypeParameter
 import org.jetbrains.kotlin.types.KotlinType
@@ -85,7 +86,8 @@ object Policy {
     // TODO: how come there's no usage
     fun provideArgumentWithDefaultValue() = bernoulliDistribution(0.5)
 
-    private fun inheritedClassCount() = uniformDistribution(0, 3)
+    // tmp
+    private fun inheritedClassCount() = 2
 
     private fun inheritClass() = bernoulliDistribution(0.5)
 
@@ -112,42 +114,47 @@ object Policy {
     val variance = ProbabilityTable(Variance.values())
 
     object Arithmetic {
-        private enum class ConstType(val min: Number, val max: Number) {
-            INT(Int.MIN_VALUE, Int.MAX_VALUE),
-            LONG(Long.MIN_VALUE, Long.MAX_VALUE),
-            FLOAT(Float.MIN_VALUE, Float.MAX_VALUE),
-            DOUBLE(Double.MIN_VALUE, Double.MAX_VALUE)
-        }
-
-        private val constType = ProbabilityTable(ConstType.values())
+        val type = ProbabilityTable(Type.values())
+        val signedType = ProbabilityTable(Type.values().filter { !it.isUnsigned })
+        val unsignedType = ProbabilityTable(Type.values().filter { it.isUnsigned })
 
         private enum class ConstKind {
-            SMALL, LARGE_POSITIVE, LARGE_NEGATIVE
+            SMALL, LARGE_POSITIVE, /*LARGE_NEGATIVE*/
         }
 
         private val constKind = ProbabilityTable(ConstKind.values())
+        private val nonNegativeConstKind = ProbabilityTable(listOf(SMALL, LARGE_POSITIVE))
 
         private const val largeConstantSpread = 10
-
         private const val smallConstantSpread = 5L
 
-        fun const(): String {
-            val kind = constKind()
-            val type = constType()
+        /**
+         * Always positive since negative literals don't exist.
+         */
+        fun const(type: Type): String {
+            val kind = if (type.isUnsigned) nonNegativeConstKind() else constKind()
             return when (kind) {
-                SMALL -> when (type) {
-                    INT, LONG -> Random.nextLong(-smallConstantSpread, smallConstantSpread + 1)
-                    FLOAT, DOUBLE -> Random.nextDouble() - 0.5
+                SMALL -> when {
+                    type.isFloatingPoint -> Random.nextDouble()
+                    else -> Random.nextLong(smallConstantSpread * 2 + 1)
                 }
-                LARGE_POSITIVE -> when (type) {
-                    INT, LONG -> Random.nextLong(type.max.toLong() - largeConstantSpread, type.max.toLong()) + 1
-                    FLOAT, DOUBLE -> (Random.nextDouble() + 1) * 0.5 * type.max.toDouble()
+                LARGE_POSITIVE -> when {
+                    type.isFloatingPoint -> (Random.nextDouble() + 1) * 0.5 * type.maxValue.toDouble()
+                    type == ULONG -> (Random.nextLong(
+                        Long.MAX_VALUE - largeConstantSpread / 2,
+                        Long.MAX_VALUE
+                    ) + 1).toULong() * 2u
+                    else -> Random.nextLong(type.maxValue.toLong() - largeConstantSpread, type.maxValue.toLong()) + 1
                 }
-                LARGE_NEGATIVE -> when (type) {
-                    INT, LONG -> Random.nextLong(type.min.toLong(), type.min.toLong() + largeConstantSpread) + 1
-                    FLOAT, DOUBLE -> (Random.nextDouble() + 1) * 0.5 * type.max.toDouble()
-                }
-            }.toString() + when (type) {
+                /*LARGE_NEGATIVE -> when {
+                    type.isFloatingPoint -> (Random.nextDouble() + 1) * 0.5 * type.minValue.toDouble()
+                    type == LONG -> Random.nextLong(
+                        type.minValue.toLong(),
+                        type.minValue.toLong() + largeConstantSpread
+                    ) + 1
+                    else -> Random.nextLong(type.minValue.toLong(), type.minValue.toLong() + largeConstantSpread)
+                }*/
+            }.toString() + if (type.isUnsigned) "u" else "" + when (type) {
                 LONG -> "L"
                 FLOAT -> "f"
                 else -> ""
@@ -181,7 +188,12 @@ object Policy {
         return if (typeParameter != null && useTypeParameter()) {
             KtTypeOrTypeParam.Parameter(typeParameter)
         } else {
-            KtTypeOrTypeParam.Type(RandomTypeGenerator.generateRandomTypeWithCtx()!!)
+            val generatedType = RandomTypeGenerator.generateRandomTypeWithCtx()
+            if (generatedType == null) {
+                chooseType(typeParameterList, *allowedVariance)
+            } else {
+                KtTypeOrTypeParam.Type(generatedType)
+            }
         }
     }
 
