@@ -11,7 +11,10 @@ import org.jetbrains.kotlin.cfg.getDeclarationDescriptorIncludingConstructors
 import org.jetbrains.kotlin.descriptors.FunctionDescriptor
 import org.jetbrains.kotlin.descriptors.Modality
 import org.jetbrains.kotlin.descriptors.PropertyDescriptor
-import org.jetbrains.kotlin.psi.*
+import org.jetbrains.kotlin.psi.KtClass
+import org.jetbrains.kotlin.psi.KtFile
+import org.jetbrains.kotlin.psi.KtTypeParameter
+import org.jetbrains.kotlin.psi.KtValueArgumentList
 import org.jetbrains.kotlin.psi.psiUtil.isAbstract
 import org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor
 import org.jetbrains.kotlin.resolve.scopes.getDescriptorsFiltered
@@ -135,6 +138,7 @@ class ClassGenerator(val context: Context, val file: KtFile) {
             RandomTypeGenerator.setFileAndContext(file, ctx)
             val propertyGenerator = PropertyGenerator(context, cls)
             val functionGenerator = FunctionGenerator(context, file, cls)
+            val implementedFunctions = mutableSetOf<String>()
             val (classIndex, inheritedClasses) = propertiesToAdd[cls.name!!]!!
             for ((resolvedName, typeParameters, inheritedClass) in inheritedClasses) {
                 val inheritedClassDescriptor =
@@ -151,7 +155,13 @@ class ClassGenerator(val context: Context, val file: KtFile) {
                     typeParameters
                 )
                 addProperties(cls, members.filterIsInstance<PropertyDescriptor>(), propertyGenerator)
-                addFunctions(cls, members.filterIsInstance<FunctionDescriptor>(), functionGenerator)
+                addFunctions(
+                    cls,
+                    members.filterIsInstance<FunctionDescriptor>()
+                            .filter { !implementedFunctions.contains(it.name.asString()) },
+                    functionGenerator
+                )
+                implementedFunctions.addAll(members.filterIsInstance<FunctionDescriptor>().map { it.name.asString() })
             }
         }
     }
@@ -183,11 +193,6 @@ class ClassGenerator(val context: Context, val file: KtFile) {
             return
         }
         functions.filter { it.modality == Modality.ABSTRACT }
-                .filter { fn ->
-                    !cls.children.filterIsInstance<KtNamedFunction>()
-                            .map { it.name!! }
-                            .contains(fn.name.asString())
-                }
                 .forEach(functionGenerator::generateOverride)
     }
 
