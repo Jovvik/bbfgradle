@@ -76,7 +76,7 @@ fun RandomTypeGenerator.generateRandomStandardTypeWithCtx(
             .take(1000)
             .firstOrNull { type ->
                 type.toString().let { typename ->
-                    forbiddenTypes.any { typename.contains(it) }
+                    forbiddenTypes.all { !typename.contains(it) }
                 }
             }
 }
