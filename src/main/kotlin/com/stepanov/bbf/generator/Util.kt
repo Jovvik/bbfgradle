@@ -1,5 +1,6 @@
 package com.stepanov.bbf.generator
 
+import com.stepanov.bbf.bugfinder.generator.targetsgenerators.typeGenerators.RandomTypeGenerator
 import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.psi.KtClass
 import org.jetbrains.kotlin.psi.KtClassOrObject
@@ -42,4 +43,40 @@ fun KtClass.isInheritableClass(): Boolean {
 
 fun indexString(prefix: String, context: Context, vararg index: Int): String {
     return "${prefix}_${context.customClasses.size}_${index.joinToString("_")}"
+}
+
+val RandomTypeGenerator.forbiddenTypes: List<String>
+    get() = listOf(
+        "Deque",
+        "EnumMap",
+        "Hashtable",
+        "IdentityHashMap",
+        "KMutableProperty",
+        "KProperty",
+        "LinkedList",
+        "NavigableMap",
+        "NavigableSet",
+        "Properties",
+        "Queue",
+        "SequentialList",
+        "SortedMap",
+        "SortedSet",
+        "Stack",
+        "TreeSet",
+        "Vector",
+        "WeakHashMap",
+        "[",
+    )
+
+fun RandomTypeGenerator.generateRandomStandardTypeWithCtx(
+    upperBounds: KotlinType? = null,
+    depth: Int = 0
+): KotlinType? {
+    return generateSequence { generateRandomTypeWithCtx(upperBounds, depth) }
+            .take(1000)
+            .firstOrNull { type ->
+                type.toString().let { typename ->
+                    forbiddenTypes.any { typename.contains(it) }
+                }
+            }
 }

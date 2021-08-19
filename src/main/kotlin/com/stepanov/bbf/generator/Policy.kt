@@ -1,7 +1,6 @@
 package com.stepanov.bbf.generator
 
 import com.stepanov.bbf.bugfinder.generator.targetsgenerators.typeGenerators.RandomTypeGenerator
-import com.stepanov.bbf.bugfinder.util.name
 import com.stepanov.bbf.generator.Policy.Arithmetic.ConstKind.LARGE_POSITIVE
 import com.stepanov.bbf.generator.Policy.Arithmetic.ConstKind.SMALL
 import com.stepanov.bbf.generator.arithmetic.*
@@ -38,7 +37,6 @@ object Policy {
 
     fun enumValueLimit() = uniformDistribution(1, 10)
 
-    // tmp
     fun freeFunctionLimit() = uniformDistribution(1, 10)
 
     fun functionParameterLimit() = uniformDistribution(0, 3)
@@ -86,8 +84,7 @@ object Policy {
     // TODO: how come there's no usage
     fun provideArgumentWithDefaultValue() = bernoulliDistribution(0.5)
 
-    // tmp
-    private fun inheritedClassCount() = 2
+    private fun inheritedClassCount() = uniformDistribution(0, 3)
 
     private fun inheritClass() = bernoulliDistribution(0.5)
 
@@ -188,7 +185,7 @@ object Policy {
         return if (typeParameter != null && useTypeParameter()) {
             KtTypeOrTypeParam.Parameter(typeParameter)
         } else {
-            val generatedType = RandomTypeGenerator.generateRandomTypeWithCtx()
+            val generatedType = RandomTypeGenerator.generateRandomStandardTypeWithCtx()
             if (generatedType == null) {
                 chooseType(typeParameterList, *allowedVariance)
             } else {
@@ -214,13 +211,7 @@ object Policy {
         val bound = typeParameter.extendsBound?.text?.let {
             RandomTypeGenerator.generateType(it)
         }
-        return RandomTypeGenerator.generateRandomTypeWithCtx(bound)!!.let {
-            if (it.name?.contains("KMutableProperty") != false) {
-                randomTypeParameterValue(typeParameter)
-            } else {
-                it
-            }
-        }
+        return RandomTypeGenerator.generateRandomStandardTypeWithCtx(bound)
     }
 
     // TODO: inheritance conflicts?

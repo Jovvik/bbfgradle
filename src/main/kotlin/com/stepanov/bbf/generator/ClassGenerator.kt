@@ -87,7 +87,9 @@ class ClassGenerator(val context: Context, val file: KtFile) {
                 // Upper bound of a type parameter cannot be an array
                 while (parameter.extendsBound?.text?.startsWith("Array<") != false) {
                     parameter.extendsBound =
-                        Factory.psiFactory.createType(RandomTypeGenerator.generateRandomTypeWithCtx()!!.toString())
+                        Factory.psiFactory.createType(
+                            RandomTypeGenerator.generateRandomStandardTypeWithCtx()!!.toString()
+                        )
                 }
             }
             parameter
