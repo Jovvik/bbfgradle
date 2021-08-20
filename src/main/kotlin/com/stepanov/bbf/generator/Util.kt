@@ -38,7 +38,7 @@ fun KtClass.getFullyQualifiedName(
 fun KtClassOrObject.isOpen() = hasModifier(KtTokens.OPEN_KEYWORD)
 
 fun KtClass.isInheritableClass(): Boolean {
-    return !isInterface() && !isInner() && (isSealed() || isInterface() || isAbstract() || isOpen())
+    return !isInterface() && !isInner() && (isSealed() || isAbstract() || isOpen())
 }
 
 fun indexString(prefix: String, context: Context, vararg index: Int): String {
@@ -63,6 +63,7 @@ val RandomTypeGenerator.forbiddenTypes: List<String>
         "SortedSet",
         "Stack",
         "TreeSet",
+        "TreeMap",
         "Vector",
         "WeakHashMap",
         "[",
@@ -71,10 +72,10 @@ val RandomTypeGenerator.forbiddenTypes: List<String>
 fun RandomTypeGenerator.generateRandomStandardTypeWithCtx(
     upperBounds: KotlinType? = null,
     depth: Int = 0
-): KotlinType? {
+): KotlinType {
     return generateSequence { generateRandomTypeWithCtx(upperBounds, depth) }
-            .take(1000)
-            .firstOrNull { type ->
+            .take(10)
+            .first { type ->
                 type.toString().let { typename ->
                     forbiddenTypes.all { !typename.contains(it) }
                 }

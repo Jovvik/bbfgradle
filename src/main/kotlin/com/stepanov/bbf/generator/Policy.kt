@@ -186,17 +186,13 @@ object Policy {
             KtTypeOrTypeParam.Parameter(typeParameter)
         } else {
             val generatedType = RandomTypeGenerator.generateRandomStandardTypeWithCtx()
-            if (generatedType == null) {
-                chooseType(typeParameterList, *allowedVariance)
-            } else {
-                KtTypeOrTypeParam.Type(generatedType)
-            }
+            KtTypeOrTypeParam.Type(generatedType)
         }
     }
 
 
     fun resolveTypeParameters(cls: KtClass): Pair<String, List<KotlinType>> {
-        val typeParameters = cls.typeParameterList?.parameters?.mapNotNull { randomTypeParameterValue(it) }
+        val typeParameters = cls.typeParameterList?.parameters?.map { randomTypeParameterValue(it) }
         return Pair(
             cls.name!! + typeParameters?.joinToString(", ", "<", ">").orEmpty(),
             typeParameters.orEmpty()
@@ -207,7 +203,7 @@ object Policy {
         TODO("Will use other generator")
     }
 
-    private fun randomTypeParameterValue(typeParameter: KtTypeParameter): KotlinType? {
+    private fun randomTypeParameterValue(typeParameter: KtTypeParameter): KotlinType {
         val bound = typeParameter.extendsBound?.text?.let {
             RandomTypeGenerator.generateType(it)
         }
