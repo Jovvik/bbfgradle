@@ -108,7 +108,7 @@ class ClassGenerator(val context: Context, val file: KtFile) {
         )
         val propertyGenerator = PropertyGenerator(context, cls)
         typeParameters.forEach { cls.typeParameterList!!.addParameter(it) }
-        propertiesToAdd[cls.name!!] = Pair(context.customClasses.size, qualifiedInheritedClasses)
+        propertiesToAdd[cls.name!!] = context.customClasses.size to qualifiedInheritedClasses
 
         repeat(Policy.propertyLimit()) {
             propertyGenerator.generate(it)
@@ -229,7 +229,8 @@ class ClassGenerator(val context: Context, val file: KtFile) {
             }
             propertyGenerator.addConstructorArgument(
                 name,
-                KtTypeOrTypeParam.Type(type)
+                KtTypeOrTypeParam.Type(type),
+                noVarVal = true
             )
             val argList = cls.superTypeListEntries.first { it.typeReference!!.text == resolvedName }.children[1]
             (argList as KtValueArgumentList).addArgument(Factory.psiFactory.createArgument(name))

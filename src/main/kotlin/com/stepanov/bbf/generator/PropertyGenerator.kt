@@ -36,26 +36,24 @@ class PropertyGenerator(val context: Context, val containingClass: KtClass) {
         name: String,
         type: KtTypeOrTypeParam,
         isOverride: Boolean = false,
-        forceVar: Boolean? = null
+        forceVar: Boolean? = null,
+        noVarVal: Boolean = false
     ) {
         val parameterTokens = mutableListOf<String>()
         if (isOverride) {
             parameterTokens.add("override")
         }
         val isVal = when {
+            noVarVal -> null
             forceVar != null -> !forceVar
             (type as? KtTypeOrTypeParam.Parameter)?.parameter?.variance == Variance.OUT_VARIANCE -> true
             !Policy.isVar() -> true
             else -> false
         }
-        parameterTokens.addAll(
-            listOf(
-                if (isVal) "val" else "var",
-                name,
-                ":",
-                type.name
-            )
-        )
+        if (isVal != null) {
+            parameterTokens += if (isVal) "val" else "var"
+        }
+        parameterTokens += listOf(name, ":", type.name)
         if (!type.hasTypeParameters && type !is KtTypeOrTypeParam.Parameter && Policy.hasDefaultValue()) {
             parameterTokens.add("=")
             parameterTokens.add(Policy.randomConst((type as KtTypeOrTypeParam.Type).type, context))
