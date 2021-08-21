@@ -41,6 +41,18 @@ fun KtClass.isInheritableClass(): Boolean {
     return !isInterface() && !isInner() && (isSealed() || isAbstract() || isOpen())
 }
 
+/**
+ * Returns a list of all containing classes whose members are reachable from this class,
+ * including `this`
+ */
+fun KtClass.getReachableContainingClasses(): List<KtClass> {
+    val containingClass = containingClass()
+    if (!isInner() || containingClass == null) {
+        return listOf(this)
+    }
+    return containingClass.getReachableContainingClasses() + this
+}
+
 fun indexString(prefix: String, context: Context, vararg index: Int): String {
     return "${prefix}_${context.customClasses.size}_${index.joinToString("_")}"
 }
@@ -73,11 +85,17 @@ fun RandomTypeGenerator.generateRandomStandardTypeWithCtx(
     upperBounds: KotlinType? = null,
     depth: Int = 0
 ): KotlinType {
-    return generateSequence { generateRandomTypeWithCtx(upperBounds, depth) }
-            .take(10)
-            .first { type ->
+    // is this really the easiest way to produce a sequence of nullables?
+    return sequence {
+        while (true) {
+            yield(generateRandomTypeWithCtx(upperBounds, depth))
+        }
+    }
+            .take(20)
+            .filterNotNull()
+            .firstOrNull { type ->
                 type.toString().let { typename ->
                     forbiddenTypes.all { !typename.contains(it) }
                 }
-            }
+            } ?: upperBounds ?: generateType(generatePrimitive()) ?: throw Exception("Couldn't generate the type")
 }
