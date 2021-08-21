@@ -128,7 +128,7 @@ object Policy {
         /**
          * Always positive since negative literals don't exist.
          */
-        fun const(type: Type): String {
+        fun constLiteral(type: Type): String {
             val kind = if (type.isUnsigned) nonNegativeConstKind() else constKind()
             return when (kind) {
                 SMALL -> when {
@@ -170,7 +170,7 @@ object Policy {
                 if (isVariable() && context.visibleNumericVariables.isNotEmpty()) {
                     Variable(context, depth)
                 } else {
-                    Const(context, depth)
+                    ConstLiteral(context, depth)
                 }
             } else {
                 nodeTable().primaryConstructor!!.call(context, depth)
