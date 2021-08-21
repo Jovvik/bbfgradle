@@ -3,8 +3,8 @@ package com.stepanov.bbf.generator
 import com.stepanov.bbf.bugfinder.mutator.transformations.Factory
 import org.jetbrains.kotlin.psi.KtExpression
 
-class ExpressionGenerator(val body: KtExpression, val context: Context) {
-    fun generateArithmetic(index: Int) {
+class BodyGenerator(val body: KtExpression, val context: Context, val returnType: KtTypeOrTypeParam?) {
+    private fun generateArithmetic(index: Int) {
         Factory.psiFactory.createProperty(
             "variable$index",
             null,
@@ -16,7 +16,7 @@ class ExpressionGenerator(val body: KtExpression, val context: Context) {
         }
     }
 
-    fun generateTodo() {
+    private fun generateTodo() {
         addToBody("TODO()")
     }
 
@@ -25,5 +25,12 @@ class ExpressionGenerator(val body: KtExpression, val context: Context) {
     private fun addToBody(expression: KtExpression) {
         body.addBefore(expression, body.lastChild)
         body.addBefore(Factory.psiFactory.createWhiteSpace("\n"), body.lastChild)
+    }
+
+    fun generate() {
+        repeat(Policy.arithmeticExpressionLimit()) {
+            generateArithmetic(it)
+        }
+        generateTodo()
     }
 }
