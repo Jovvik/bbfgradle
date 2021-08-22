@@ -70,13 +70,15 @@ class FunctionGenerator(
             val publicModifier = Factory.psiFactory.createClass("class A(public a: Int)").primaryConstructorParameters
                     .first().visibilityModifierType()
             context.visibleVariables = valueParameters.toMutableList()
+            context.visibleFunctions = context.customFunctions
             containingClass?.getReachableContainingClasses()
                     .orEmpty()
                     .forEach { cls ->
                         context.visibleVariables += (cls.getProperties() + cls.primaryConstructorParameters.filter { it.hasValOrVar() })
                                 .filterNot { flags.inline && it.visibilityModifierType() != publicModifier } // can't use non-public members in inline function
+                        context.visibleFunctions += cls.declarations.filterIsInstance<KtFunction>()
                     }
-            val bodyGenerator = BodyGenerator(fn.bodyExpression!!, context, returnType)
+            val bodyGenerator = BodyGenerator(fn.bodyExpression!!, context, file, returnType)
             bodyGenerator.generate()
         }
         if (containingClass != null) {
