@@ -16,6 +16,7 @@ import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtTypeParameter
 import org.jetbrains.kotlin.psi.KtValueArgumentList
 import org.jetbrains.kotlin.psi.psiUtil.isAbstract
+import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor
 import org.jetbrains.kotlin.resolve.scopes.getDescriptorsFiltered
 import org.jetbrains.kotlin.types.KotlinType
@@ -35,12 +36,24 @@ class ClassGenerator(val context: Context, val file: KtFile) {
                 Policy.ClassKind.REGULAR -> generateClass(classLimit)
             }
         }
+        generateSequence(::getUnimplementedInterfaceOrAbstractClass)
+                .forEach { generateClass(classLimit, it) }
         addUnimplemented()
         RandomTypeGenerator.setFileAndContext(file, PSICreator.analyze(file)!!)
         val functionGenerator = FunctionGenerator(context, file)
         repeat(Policy.freeFunctionLimit()) {
             functionGenerator.generate(it)
         }
+    }
+
+    private fun getUnimplementedInterfaceOrAbstractClass() = context.customClasses.firstOrNull { inheritanceCandidate ->
+        (inheritanceCandidate.isInterface() || inheritanceCandidate.isAbstract()) &&
+                context.customClasses.filterNot { it.isInterface() || it.isAbstract() }
+                        .none { otherClass ->
+                            otherClass.superTypeListEntries.any {
+                                it.text.contains(inheritanceCandidate.name!!)
+                            }
+                        }
     }
 
     private fun generateInterface() {
@@ -74,11 +87,12 @@ class ClassGenerator(val context: Context, val file: KtFile) {
 
     private fun generateClass(
         classLimit: Int,
+        forceInheritedClass: KtClass? = null,
         containingClass: KtClass? = null,
         depth: Int = 0,
         isInner: Boolean = false
     ) {
-        val (classModifiers, isInner) = getClassModifiers(isInner, containingClass)
+        val (classModifiers, isInner) = getClassModifiers(isInner, containingClass, forceInheritedClass != null)
 
         val typeParameters = (0 until Policy.typeParameterLimit()).map {
             val paramName = indexString("T", context, it)
@@ -88,13 +102,17 @@ class ClassGenerator(val context: Context, val file: KtFile) {
                 while (parameter.extendsBound?.text?.startsWith("Array<") != false) {
                     parameter.extendsBound =
                         Factory.psiFactory.createType(
-                            RandomTypeGenerator.generateRandomStandardTypeWithCtx()!!.toString()
+                            RandomTypeGenerator.generateRandomStandardTypeWithCtx().toString()
                         )
                 }
             }
             parameter
         }
-        val inheritedClasses = Policy.inheritedClasses(context)
+        val inheritedClasses = if (forceInheritedClass == null) {
+            Policy.inheritedClasses(context)
+        } else {
+            listOf(forceInheritedClass)
+        }
         val qualifiedInheritedClasses =
             inheritedClasses.map { klass ->
                 val (resolved, chosenParameters) = klass.getFullyQualifiedName(false)
@@ -120,7 +138,7 @@ class ClassGenerator(val context: Context, val file: KtFile) {
         context.customClasses.add(cls)
         repeat(Policy.nestedClassLimit()) {
             if (classLimit > context.customClasses.size && depth < Policy.maxNestedClassDepth) {
-                generateClass(classLimit, cls, depth + 1, isInner)
+                generateClass(classLimit, forceInheritedClass = null, cls, depth + 1, isInner)
             }
         }
         if (containingClass == null) {
@@ -128,42 +146,54 @@ class ClassGenerator(val context: Context, val file: KtFile) {
         }
     }
 
-    // TODO: functions
+    private fun getClassDescriptorByName(name: String, ctx: BindingContext) =
+        file.getAllPSIChildrenOfType<KtClass>()
+                .first { it.name == name }
+                .getDeclarationDescriptorIncludingConstructors(ctx)!! as LazyClassDescriptor
+
     private fun addUnimplemented() {
+        val toAdd = mutableListOf<Pair<KtClass, InheritedClass>>()
         for (cls in file.getAllPSIChildrenOfType<KtClass>()
                 .filter { it.name?.startsWith(CLASS_PREFIX) ?: false }
+                .filter { it.name in propertiesToAdd }
                 .sortedBy { it.name!!.substring(CLASS_PREFIX.length).toInt() }) {
-            if (cls.name!! !in propertiesToAdd) {
-                continue
-            }
-            val ctx = PSICreator.analyze(file)!! // re-analyzing each time since signatures may change
+            val ctx = PSICreator.analyze(file)!!
             RandomTypeGenerator.setFileAndContext(file, ctx)
-            val propertyGenerator = PropertyGenerator(context, cls)
-            val functionGenerator = FunctionGenerator(context, file, cls)
-            val implementedFunctions = mutableSetOf<String>()
-            val (classIndex, inheritedClasses) = propertiesToAdd[cls.name!!]!!
-            for ((resolvedName, typeParameters, inheritedClass) in inheritedClasses) {
-                val inheritedClassDescriptor =
-                    file.getAllPSIChildrenOfType<KtClass>().first { it.name == inheritedClass.name }
-                            .getDeclarationDescriptorIncludingConstructors(ctx)!! as LazyClassDescriptor
-                val members = inheritedClassDescriptor.getMemberScope(typeParameters.map { it.asTypeProjection() })
-                        .getDescriptorsFiltered { true }
+            val inheritedClasses = propertiesToAdd[cls.name!!]!!.second
+            for (inheritedClass in inheritedClasses) {
+                val inheritedClassDescriptor = getClassDescriptorByName(inheritedClass.cls.name!!, ctx)
+                toAdd.add(Pair(cls, inheritedClass))
                 addConstructorParameters(
                     cls,
                     inheritedClassDescriptor,
-                    resolvedName,
-                    classIndex,
-                    propertyGenerator,
-                    typeParameters
+                    inheritedClass.resolvedName,
+                    propertiesToAdd[cls.name!!]!!.first,
+                    PropertyGenerator(context, cls),
+                    inheritedClass.typeParameters
                 )
-                addProperties(cls, members.filterIsInstance<PropertyDescriptor>(), propertyGenerator)
-                addFunctions(
-                    cls,
-                    members.filterIsInstance<FunctionDescriptor>()
-                            .filter { !implementedFunctions.contains(it.name.asString()) },
-                    functionGenerator
-                )
-                implementedFunctions.addAll(members.filterIsInstance<FunctionDescriptor>().map { it.name.asString() })
+            }
+        }
+        val ctx = PSICreator.analyze(file)!!
+        RandomTypeGenerator.setFileAndContext(file, ctx)
+        val implementedFunctions = mutableMapOf<KtClass, MutableSet<String>>()
+        for ((cls, inheritedClass) in toAdd) {
+            val members = getClassDescriptorByName(inheritedClass.cls.name!!, ctx)
+                    .getMemberScope(inheritedClass.typeParameters.map { it.asTypeProjection() })
+                    .getDescriptorsFiltered { true }
+            addProperties(cls, members.filterIsInstance<PropertyDescriptor>(), PropertyGenerator(context, cls))
+            addFunctions(
+                cls,
+                members.filterIsInstance<FunctionDescriptor>()
+                        .filterNot { implementedFunctions[cls].orEmpty().contains(it.name.asString()) },
+                FunctionGenerator(context, file, cls)
+            )
+            val nowImplementedFunctions = members.filterIsInstance<FunctionDescriptor>().map { it.name.asString() }
+            implementedFunctions.compute(cls) { _, fns ->
+                if (fns == null) {
+                    nowImplementedFunctions.toMutableSet()
+                } else {
+                    (fns + nowImplementedFunctions).toMutableSet()
+                }
             }
         }
     }
@@ -239,7 +269,8 @@ class ClassGenerator(val context: Context, val file: KtFile) {
 
     private fun getClassModifiers(
         isInner: Boolean,
-        containingClass: KtClass?
+        containingClass: KtClass?,
+        notAbstract: Boolean = false
     ): Pair<List<String>, Boolean> {
         val classModifiers = mutableListOf<String>()
         // intentional shadowing
@@ -250,7 +281,7 @@ class ClassGenerator(val context: Context, val file: KtFile) {
         when {
             !isInner && Policy.isSealed() -> classModifiers.add("sealed")
             Policy.isOpen() -> classModifiers.add("open")
-            Policy.isAbstractClass() -> classModifiers.add("abstract")
+            !notAbstract && !isInner && Policy.isAbstractClass() -> classModifiers.add("abstract")
         }
         return Pair(classModifiers, isInner)
     }
