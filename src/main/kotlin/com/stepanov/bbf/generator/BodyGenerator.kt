@@ -52,14 +52,16 @@ class BodyGenerator(
     }
 
     private fun generatePrint() {
-        for (variable in context.visibleVariables) {
+        for (variable in context.visibleVariables.filter(::isNotFunctionTypeOrSubtype)) {
             addToBody("println(${variable.name})")
         }
     }
 
     private fun generateReturn() {
         val returnVariable =
-            context.visibleVariables.filter { (it.typeReference?.text ?: false) == returnType?.name }.randomOrNull()
+            context.visibleVariables.filter { (it.typeReference?.text ?: false) == returnType?.name }
+                    .filter(::isNotFunctionTypeOrSubtype)
+                    .randomOrNull()
         val numericReturnType = Type.values().firstOrNull { it.toString() == returnType?.name }
         val numericVariable = context.visibleNumericVariables.randomOrNull()
         when {
@@ -77,11 +79,26 @@ class BodyGenerator(
             }
 //            else -> generateTodo()
             // TODO: add generation from functions or properties
-//            else -> {
-//                val instance = ClassInstanceGenerator(file).generateRandomInstanceOfUserClass(returnType.type)?.first
-//                    ?: return generateTodo()
-//                addToBody("return ${instance.text}")
-//            }
+            else -> {
+                val instance = RandomInstancesGenerator(file).generateValueOfType(returnType.type)
+                if (instance.isEmpty()) {
+                    generateTodo()
+                } else {
+                    addToBody("return $instance")
+                }
+            }
         }
+    }
+
+    /**
+     * Checks if `decl` is a function and contatining function is inline - in which case `decl` can't be used in some ways.
+     * TODO: check if `decl` is `noinline` and return true if that's the case
+     */
+    private fun isNotFunctionTypeOrSubtype(decl: KtCallableDeclaration): Boolean {
+        if (containingFunction?.modifierList?.text?.contains("inline") != true) {
+            return true
+        }
+        val text = decl.typeReference?.text ?: return true
+        return RandomTypeGenerator.generateType(text)?.isFunctionTypeOrSubtype == false
     }
 }
