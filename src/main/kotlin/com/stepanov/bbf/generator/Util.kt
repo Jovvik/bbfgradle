@@ -59,25 +59,6 @@ fun indexString(prefix: String, context: Context, vararg index: Int): String {
 
 val RandomTypeGenerator.forbiddenTypes: List<String>
     get() = listOf(
-        "Deque",
-        "EnumMap",
-        "Hashtable",
-        "IdentityHashMap",
-        "KMutableProperty",
-        "KProperty",
-        "LinkedList",
-        "NavigableMap",
-        "NavigableSet",
-        "Properties",
-        "Queue",
-        "SequentialList",
-        "SortedMap",
-        "SortedSet",
-        "Stack",
-        "TreeSet",
-        "TreeMap",
-        "Vector",
-        "WeakHashMap",
         "[",
     )
 
