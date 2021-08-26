@@ -10,11 +10,9 @@ class CastOperator(context: Context, depth: Int, childNode_: Node?, type_: Type?
     override var type = type_ ?: Policy.Arithmetic.type()
 
     init {
-        // `LONG` because casts like `Float` to `Short` are illegal.
-        if (type.isUnsigned && childNode.type.isFloatingPoint) {
-            childNode = CastOperator(context, depth + 1, childNode, Type.LONG)
-        } else if (type.isFloatingPoint && childNode.type.isUnsigned) {
-            childNode = CastOperator(context, depth + 1, childNode, Type.LONG)
+        // see https://youtrack.jetbrains.com/issue/KT-30360
+        if (childNode.type.isFloatingPoint && type < Type.INT) {
+            childNode = CastOperator(context, depth + 1, childNode, Type.INT)
         }
     }
 
