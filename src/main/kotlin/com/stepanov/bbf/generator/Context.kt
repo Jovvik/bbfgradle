@@ -8,7 +8,8 @@ import org.jetbrains.kotlin.psi.KtFunction
 data class Context(
     val customClasses: MutableList<KtClass> = mutableListOf(),
     val customFunctions: MutableList<KtFunction> = mutableListOf(),
-    var visibleVariables: MutableList<KtCallableDeclaration> = mutableListOf()
+    var visibleVariables: MutableList<KtCallableDeclaration> = mutableListOf(),
+    var visibleFunctions: MutableList<KtFunction> = mutableListOf()
 ) {
     val visibleNumericVariables: List<KtCallableDeclaration>
         get() = visibleVariables.filter { numericPrimitives.contains(it.typeReference?.text) }

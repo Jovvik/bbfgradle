@@ -78,7 +78,7 @@ class FunctionGenerator(
                                 .filterNot { flags.inline && it.visibilityModifierType() != publicModifier } // can't use non-public members in inline function
                         context.visibleFunctions += cls.declarations.filterIsInstance<KtFunction>()
                     }
-            val bodyGenerator = BodyGenerator(fn.bodyExpression!!, context, file, returnType)
+            val bodyGenerator = BodyGenerator(fn.bodyExpression!!, context, file, returnType, fn)
             bodyGenerator.generate()
         }
         if (containingClass != null) {
