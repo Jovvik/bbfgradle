@@ -110,31 +110,6 @@ object Policy {
 
     val variance = ProbabilityTable(Variance.values())
 
-    // awful
-    val importPackages = listOf(
-        listOf(
-            "AbstractSequentialList",
-            "Deque",
-            "EnumMap",
-            "Hashtable",
-            "IdentityHashMap",
-            "LinkedList",
-            "NavigableMap",
-            "NavigableSet",
-            "Properties",
-            "Queue",
-            "SortedMap",
-            "SortedSet",
-            "Stack",
-            "TreeMap",
-            "Vector",
-            "WeakHashMap"
-        ) to "java.util",
-        listOf("KProperty", "KMutableProperty") to "kotlin.reflect"
-    ).flatMap { (classes, packageName) ->
-        classes.map { it to packageName }
-    }.toMap()
-
     object Arithmetic {
         val type = ProbabilityTable(Type.values())
         val signedType = ProbabilityTable(Type.values().filter { !it.isUnsigned })
