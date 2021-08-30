@@ -5,6 +5,7 @@ import com.stepanov.bbf.bugfinder.mutator.transformations.Factory
 import com.stepanov.bbf.bugfinder.mutator.transformations.tce.StdLibraryGenerator
 import com.stepanov.bbf.bugfinder.util.*
 import org.apache.log4j.Logger
+import org.jetbrains.kotlin.builtins.getReceiverTypeFromFunctionType
 import org.jetbrains.kotlin.cfg.getDeclarationDescriptorIncludingConstructors
 import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.lexer.KtTokens
@@ -159,6 +160,7 @@ internal class ClassInstanceGenerator(file: KtFile) : TypeAndValueParametersGene
         val implementations = StdLibraryGenerator.findImplementationFromFile(interfaceType, true)
         val randomImpl = implementations.randomOrNull()?.defaultType ?: return null
         val instance = unsafeGenerateRandomInstanceOfClass(randomImpl, depth + 1)
+            ?: return generateAnonymousObjectImplementation(interfaceType, depth)
         if (Random.getTrue(30)) {
             val anObjImpl = generateAnonymousObjectImplementation(interfaceType, depth)
             return listOfNotNull(instance, anObjImpl).randomOrNull()
@@ -187,9 +189,10 @@ internal class ClassInstanceGenerator(file: KtFile) : TypeAndValueParametersGene
             ?.lastOrNull() as? FunctionDescriptor)
             ?: return null
 
-        val numberOfParams = substConDescr.valueParameters.size
+        val valueParamsWithoutReceiver = substConDescr.valueParameters.filter { it.type.getReceiverTypeFromFunctionType() == null }
+        val numberOfParams = valueParamsWithoutReceiver.size
         val substitutedValueParamsAndRTV =
-            substConDescr.valueParameters.map { it.returnType } + listOf(substConDescr.returnType)
+            valueParamsWithoutReceiver.map { it.returnType } + listOf(substConDescr.returnType)
         val substitutedTypeParamsAsString =
             substitutedValueParamsAndRTV
                 .joinToString(", ", "<", ">") {
@@ -228,6 +231,7 @@ internal class ClassInstanceGenerator(file: KtFile) : TypeAndValueParametersGene
                 }
         val res = StringBuilder()
         val name = interfaceType.constructor.declarationDescriptor?.name ?: return null
+        // TODO: call constructor
         res.appendLine("object: $name {")
         for (member in membersToOverride) {
             val memberToString = "$member".substringBefore(':').erase("abstract ")
