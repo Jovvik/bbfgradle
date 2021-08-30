@@ -234,16 +234,14 @@ internal class ClassInstanceGenerator(file: KtFile) : TypeAndValueParametersGene
             if (member is PropertyDescriptor) {
                 val rtv = member.type
                 val initialValue =
-                    RandomInstancesGenerator(file).generateValueOfType(rtv, depth + 1)
-                        .let { if (it.isEmpty()) "TODO" else it }
+                    RandomInstancesGenerator(file).generateValueOfType(rtv, depth + 1).ifEmpty { "TODO()" }
                 res.appendLine("override $memberToString: $rtv = $initialValue")
             } else if (member is FunctionDescriptor) {
                 val psi = member.findPsi() as? KtNamedFunction
                 if (psi != null && psi.hasBody() && Random.getTrue(85)) continue
                 val rtv = member.returnType ?: continue
                 val initialValue =
-                    RandomInstancesGenerator(file).generateValueOfType(rtv, depth + 1)
-                        .let { if (it.isEmpty()) "TODO" else it }
+                    RandomInstancesGenerator(file).generateValueOfType(rtv, depth + 1).ifEmpty { "TODO()" }
                 res.appendLine("override $memberToString: $rtv = $initialValue")
             }
         }
