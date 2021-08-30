@@ -1,6 +1,7 @@
 package com.stepanov.bbf.generator
 
 import com.stepanov.bbf.bugfinder.executor.project.Project
+import com.stepanov.bbf.bugfinder.mutator.transformations.tce.StdLibraryGenerator
 import com.stepanov.bbf.bugfinder.util.addImport
 import org.jetbrains.kotlin.psi.KtFile
 
@@ -10,14 +11,10 @@ class Generator {
         val project = Project.createFromCode("")
         val file = project.files.first().psiFile as KtFile
         ClassGenerator(context, file).generate()
-        val packages = Policy.importPackages.mapNotNull { (cls, packageName) ->
-            if (file.text.contains(cls)) {
-                packageName
-            } else null
-        }.distinct()
-        packages.forEach {
-            file.addImport(it, true)
+        val imports = StdLibraryGenerator.calcImports(file)
+        imports.forEach {
+            file.addImport(it, false)
         }
-        return project to packages.any { it.contains("java") }
+        return project to imports.any { it.startsWith("java") }
     }
 }
